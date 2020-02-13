@@ -35,6 +35,7 @@ if [ ! -n "$BASH" ] ;then
 fi
 
 VERSION="0.6.5-beta"	# -beta, -hotfix or -dev suffixes possible
+VERSION_CONFIG="0.1.3"	# required config version
 
 # add pathes if not already set (usually not set in crontab)
 
@@ -60,11 +61,11 @@ IS_HOTFIX=$((! $? ))
 MYSELF=${0##*/}
 MYNAME=${MYSELF%.*}
 
-GIT_DATE="$Date: 2020-02-09 17:00:14 +0100$"
+GIT_DATE="$Date: 2020-02-13 17:46:08 +0100$"
 GIT_DATE_ONLY=${GIT_DATE/: /}
 GIT_DATE_ONLY=$(cut -f 2 -d ' ' <<< $GIT_DATE)
 GIT_TIME_ONLY=$(cut -f 3 -d ' ' <<< $GIT_DATE)
-GIT_COMMIT="$Sha1: 24a284b$"
+GIT_COMMIT="$Sha1: 731e152$"
 GIT_COMMIT_ONLY=$(cut -f 2 -d ' ' <<< $GIT_COMMIT | sed 's/\$//')
 
 GIT_CODEVERSION="$MYSELF $VERSION, $GIT_DATE_ONLY/$GIT_TIME_ONLY - $GIT_COMMIT_ONLY"
@@ -206,6 +207,7 @@ SUPPORTED_EMAIL_PROGRAM_REGEX="^($EMAIL_MAILX_PROGRAM|$EMAIL_SSMTP_PROGRAM|$EMAI
 SUPPORTED_MAIL_PROGRAMS=$(echo $SUPPORTED_EMAIL_PROGRAM_REGEX | sed 's:^..\(.*\)..$:\1:' | sed 's/|/,/g')
 
 PARTITIONS_TO_BACKUP_ALL="*"
+MASQUERADE_STRING="@@@"
 
 NEWS_AVAILABLE=0
 BETA_AVAILABLE=0
@@ -263,6 +265,7 @@ RC_EMAILPROG_ERROR=124
 RC_MISSING_PARTITION=125
 RC_UUIDS_NOT_UNIQUE=126
 RC_INCOMPLETE_PARMS=127
+RC_CONFIGVERSION_MISMATCH=128
 
 tty -s
 INTERACTIVE=!$?
@@ -383,7 +386,7 @@ MSG_EN[$MSG_INVALID_LOG_LEVEL]="RBK0032W: Invalid parameter '%s' for option -l d
 MSG_DE[$MSG_INVALID_LOG_LEVEL]="RBK0032W: Ungültiger Parameter '%s' für Option -l eingegeben. Es wird Standardparameter '%s' genommen."
 MSG_CLEANING_UP=33
 MSG_EN[$MSG_CLEANING_UP]="RBK0033I: Please wait until cleanup has finished."
-MSG_DE[$MSG_CLEANING_UP]="RBK0032I: Bitte warten bis aufgeräumt wurde."
+MSG_DE[$MSG_CLEANING_UP]="RBK0033I: Bitte warten bis aufgeräumt wurde."
 MSG_FILE_NOT_FOUND=34
 MSG_EN[$MSG_FILE_NOT_FOUND]="RBK0034E: File %s not found."
 MSG_DE[$MSG_FILE_NOT_FOUND]="RBK0034E: Datei %s nicht gefunden."
@@ -933,9 +936,9 @@ MSG_DE[$MSG_EXTERNAL_PARTITION_NOT_SAVED]="RBK0211E: Externe Partition %s die an
 MSG_BACKUP_WARNING=212
 MSG_EN[$MSG_BACKUP_WARNING]="RBK0212W: Backup finished with warnings. Check previous warning messages for details."
 MSG_DE[$MSG_BACKUP_WARNING]="RBK0212W: Backup endete mit Warnungen. Siehe vorhergehende Warnmeldungen."
-MSG_MOUNT_ERROR=213
-MSG_EN[$MSG_MOUNT_ERROR]="RBK0213E: Mount %s to %s failed. RC %s."
-MSG_DE[$MSG_MOUNT_ERROR]="RBK0213E: Mount von %s an %s ist fehlerhaft."
+MSG_MOUNT_CHECK_ERROR=213
+MSG_EN[$MSG_MOUNT_CHECK_ERROR]="RBK0213E: Mount %s to %s failed. RC %s."
+MSG_DE[$MSG_MOUNT_CHECK_ERROR]="RBK0213E: Mount von %s an %s ist fehlerhaft."
 MSG_MISSING_SMART_RECYCLE_PARMS=214
 MSG_EN[$MSG_MISSING_SMART_RECYCLE_PARMS]="RBK0214E: Missing smart recycle parms in %s. Have to be four:Daily Weekly Monthly Yearly."
 MSG_DE[$MSG_MISSING_SMART_RECYCLE_PARMS]="RBK0214E: Missing smart recycle parms in %s. Es müssen vier sein: Täglich Wöchentlich Monatlich Jährlich"
@@ -963,15 +966,18 @@ MSG_DE[$MSG_SMART_RECYCLE_FILE_DELETE]="RBK0220I: Smart Backup Strategie löscht
 MSG_SMART_RECYCLE_FILE_WOULD_BE_KEPT=222
 MSG_EN[$MSG_SMART_RECYCLE_FILE_WOULD_BE_KEPT]="RBK0222W: Smart backup strategy would keep %s."
 MSG_DE[$MSG_SMART_RECYCLE_FILE_WOULD_BE_KEPT]="RBK0222W: Smart Backup Strategie würde %s Backup behalten."
-MSG_UMOUNT_ERROR=223
-MSG_EN[$MSG_UMOUNT_ERROR]="RBK0223E: Umount %s to %s failed. RC %s."
-MSG_DE[$MSG_UMOUNT_ERROR]="RBK0223E: Umount von %s an %s ist fehlerhaft."
+MSG_UMOUNT_CHECK_ERROR=223
+MSG_EN[$MSG_UMOUNT_CHECK_ERROR]="RBK0223E: Umount %s to %s failed. RC %s."
+MSG_DE[$MSG_UMOUNT_CHECK_ERROR]="RBK0223E: Umount von %s an %s ist fehlerhaft."
 MSG_FILE_CONTAINS_SPACES=224
 MSG_EN[$MSG_FILE_CONTAINS_SPACES]="RBK0224E: Spaces are not allowed in \"%s\"."
 MSG_DE[$MSG_FILE_CONTAINS_SPACES]="RBK0224E: Leerzeichen sind nicht in \"%s\" erlaubt."
 MSG_INVALID_EMAIL=225
 MSG_EN[$MSG_INVALID_EMAIL]="RBK0225E: Invalid eMail \"%s\"."
 MSG_DE[$MSG_INVALID_EMAIL]="RBK0225E: Ungültige eMail \"%s\"."
+MSG_CONFIG_VERSION_DOES_NOT_MATCH=226
+MSG_EN[$MSG_CONFIG_VERSION_DOES_NOT_MATCH]="RBK0226W: Found unexpected config version %s in %s. Expected version %s."
+MSG_DE[$MSG_CONFIG_VERSION_DOES_NOT_MATCH]="RBK0226W: Unerwartete Konfigurationsversion %s in %s gefunden. %s wird erwartet."
 
 declare -A MSG_HEADER=( ['I']="---" ['W']="!!!" ['E']="???" )
 
@@ -1502,7 +1508,7 @@ function initializeDefaultConfig() {
 	# Additional parameters for email program (optional)
 	DEFAULT_EMAIL_PARMS=""
 	# log level  (0 = none, 1 = debug)
-	DEFAULT_LOG_LEVEL=1
+	DEFAULT_LOG_LEVEL=2
 	# log output ( 0 = syslog, 1 = /var/log, 2 = backuppath, 3 = ./raspiBackup.log, <somefilename>)
 	DEFAULT_LOG_OUTPUT=2
 	# msg level (0 = minimal, 1 = detailed)
@@ -2284,6 +2290,10 @@ function readConfigParameters() {
 		. "$ETC_CONFIG_FILE"
 		set +e
 		ETC_CONFIG_FILE_INCLUDED=1
+		ETC_CONFIG_FILE_VERSION="$(extractVersionFromFile "$ETC_CONFIG_FILE")"
+#		if [[ "$ETC_CONFIG_FILE_VERSION" != "$VERSION_CONFIG" ]]; then
+#			writeToConsole $MSG_LEVEL_MINIMAL $MSG_CONFIG_VERSION_DOES_NOT_MATCH "$ETC_CONFIG_FILE_VERSION" "$ETC_CONFIG_FILE" "$VERSION_CONFIG"
+#		fi
 	fi
 
 	if [[ -z $UUID && $UID == 0 ]]; then
@@ -2300,6 +2310,10 @@ function readConfigParameters() {
 		. "$HOME_CONFIG_FILE"
 		set +e
 		HOME_CONFIG_FILE_INCLUDED=1
+		HOME_CONFIG_FILE_VERSION="$(extractVersionFromFile "$HOME_CONFIG_FILE")"
+#		if [[ -n "$HOME_CONFIG_FILE_VERSION" && "$HOME_CONFIG_FILE_VERSION" != "$VERSION_CONFIG" ]]; then
+#			writeToConsole $MSG_LEVEL_MINIMAL $MSG_CONFIG_VERSION_DOES_NOT_MATCH "$HOME_CONFIG_FILE_VERSION" "$HOME_CONFIG_FILE" "$VERSION_CONFIG"
+#		fi
 	fi
 
 	# Override default parms with parms in current directory config file
@@ -2311,6 +2325,10 @@ function readConfigParameters() {
 			. "$CURRENTDIR_CONFIG_FILE"
 			set +e
 			CURRENTDIR_CONFIG_FILE_INCLUDED=1
+			CURRENTDIR_CONFIG_FILE_VERSION="$(extractVersionFromFile "$CURRENTDIR_CONFIG_FILE")"
+#			if [[ -n "$CURRENTDIR_CONFIG_FILE_VERSION" && "$CURRENTDIR_CONFIG_FILE_VERSION" != "$VERSION_CONFIG" ]]; then
+#				writeToConsole $MSG_LEVEL_MINIMAL $MSG_CONFIG_VERSION_DOES_NOT_MATCH "$CURRENTDIR_CONFIG_FILE_VERSION" "$CURRENTDIR_CONFIG_FILE" "$VERSION_CONFIG"
+#			fi
 		fi
 	fi
 
@@ -2689,6 +2707,9 @@ function cleanupBackupDirectory() {
 			# resume logging of output into log file now residing in home directory
 			exec 1>> >(stdbuf -i0 -o0 -e0 tee -ia "$LOG_FILE")
 			exec 2>> >(stdbuf -i0 -o0 -e0 tee -ia "$LOG_FILE" >&2)
+
+			# save file descriptors, see https://unix.stackexchange.com/questions/80988/how-to-stop-redirection-in-bash
+			exec 3>&1 4>&2
 		fi
 	fi
 
@@ -2698,6 +2719,15 @@ function cleanupBackupDirectory() {
 	fi
 
 	logExit
+}
+
+function masqueradeSensitiveInfoInLog() {
+
+	sed -i -E "s/EMAIL=.+$/EMAIL=${MASQUERADE_STRING}\n/" $LOG_FILE
+	sed -i -E "s/EMAIL_PARMS=.+$/EMAIL_PARMS=${MASQUERADE_STRING}\n/" $LOG_FILE # may contain passwords
+
+	sed -i -E "s/username=[^,]+\,/username=${MASQUERADE_STRING},/" $LOG_FILE # used in cifs mount options
+	sed -i -E "s/domain=[^,]+\,/domain=${MASQUERADE_STRING},/" $LOG_FILE
 }
 
 function cleanup() { # trap
@@ -2734,6 +2764,9 @@ function cleanup() { # trap
 
 	writeToConsole $MSG_LEVEL_MINIMAL $MSG_STOPPED "$HOSTNAME" "$MYSELF" "$VERSION" "$GIT_COMMIT_ONLY" "$(date)" "$rc"
 	logger -t $MYNAME "Stopped $VERSION ($GIT_COMMIT_ONLY). rc $rc"
+
+	exec >&3 2>&4 # free logfile
+	masqueradeSensitiveInfoInLog # and now masquerade sensitive details in log file
 
 	exit $CLEANUP_RC
 
@@ -2817,7 +2850,7 @@ EOF
 }
 
 function extractVersionFromFile() { # fileName
-	echo $(grep "^VERSION=" "$1" | cut -f 2 -d = | sed  -e "s/\"//g" -e "s/#.*//")
+	echo $(grep "^VERSION.*=" "$1" | cut -f 2 -d = | sed  -e "s/\"//g" -e "s/#.*//")
 }
 
 function revertScriptVersion() {
@@ -2830,14 +2863,14 @@ function revertScriptVersion() {
 		assertionFailed $LINENO "$SCRIPT_DIR/$MYSELF not found"
 	fi
 
-	local currentVersion=$(extractVersionFromFile "$SCRIPT_DIR/$MYSELF")
+	local currentVersion="$(extractVersionFromFile "$SCRIPT_DIR/$MYSELF")"
 	writeToConsole $MSG_LEVEL_MINIMAL $MSG_CURRENT_SCRIPT_VERSION "$currentVersion"
 
 	declare -A versionsOfFiles
 
 	local version
 	for versionFile in "${existingVersionFiles[@]}"; do
-		version=$(extractVersionFromFile "$versionFile")
+		version="$(extractVersionFromFile "$versionFile")"
 		if [[ $version != $currentVersion ]]; then
 			versionsOfFiles+=([$version]=$versionFile)
 		fi
@@ -2914,8 +2947,6 @@ function cleanupBackup() { # trap
 		umountSDPartitions "$TEMPORARY_MOUNTPOINT_ROOT"
 	fi
 
-	cleanupBackupDirectory
-
 	if (( $rc != 0 )); then
 		writeToConsole $MSG_LEVEL_MINIMAL $MSG_BACKUP_FAILED
 
@@ -2935,7 +2966,7 @@ function cleanupBackup() { # trap
 	else
 
 		if (( ! $MAIL_ON_ERROR_ONLY )); then
-			if (( WARNING_MESSAGE_WRITTEN )); then
+			if (( $WARNING_MESSAGE_WRITTEN )); then
 				writeToConsole $MSG_LEVEL_MINIMAL $MSG_BACKUP_WARNING
 			else
 				writeToConsole $MSG_LEVEL_MINIMAL $MSG_BACKUP_OK
@@ -2945,6 +2976,8 @@ function cleanupBackup() { # trap
 		msg=$(getLocalizedMessage $MSG_TITLE_OK $HOSTNAME)
 		sendEMail "" "$msg"
 	fi
+
+	cleanupBackupDirectory
 
 	logExit
 
@@ -3652,13 +3685,14 @@ function restore() {
 			logItem "Creating mountpoint $MNT_POINT"
 			mkdir -p $MNT_POINT
 
-			logItem "Umounting partitions"
+			logItem "Umounting boot partition $BOOT_PARTITION"
 			umount $BOOT_PARTITION &>>"$LOG_FILE"
 			rc=$?
 			if (( ! $rc )); then
 				writeToConsole $MSG_LEVEL_MINIMAL $MSG_UMOUNT_ERROR "BOOT_PARTITION" "$rc"
 				exitError $RC_MISC_ERROR
 			fi
+			logItem "Umounting root partition $ROOT_PARTITION"
 			umount $ROOT_PARTITION &>>"$LOG_FILE"
 			rc=$?
 			if (( ! $rc )); then
@@ -3669,6 +3703,7 @@ function restore() {
 			if (( $FORCE_SFDISK )); then
 				writeToConsole $MSG_LEVEL_MINIMAL $MSG_FORCING_CREATING_PARTITIONS
 				sfdisk -f $RESTORE_DEVICE < "$SF_FILE" &>>"$LOG_FILE"
+				rc=$?
 				if (( $rc )); then
 					writeToConsole $MSG_LEVEL_DETAILED $MSG_UNABLE_TO_CREATE_PARTITIONS $rc "sfdisk error"
 					exitError $RC_CREATE_PARTITIONS_FAILED
@@ -5816,7 +5851,7 @@ function mountAndCheck() { # device mountpoint
 		logItem "$1 mounted - unmouting"
 		umount "$1" &>>"$LOG_FILE"
 		if (( $rc )); then
-			writeToConsole $MSG_LEVEL_MINIMAL $MSG_UMOUNT_ERROR "$1" "$2" "$rc"
+			writeToConsole $MSG_LEVEL_MINIMAL $MSG_UMOUNT_CHECK_ERROR "$1" "$2" "$rc"
 			logExit $rc
 			exitError $RC_MISC_ERROR
 		fi
@@ -5824,7 +5859,7 @@ function mountAndCheck() { # device mountpoint
 	mount "$1" "$2" &>>"$LOG_FILE"
 	local rc=$?
 	if (( $rc )); then
-		writeToConsole $MSG_LEVEL_MINIMAL $MSG_MOUNT_ERROR "$1" "$2" "$rc"
+		writeToConsole $MSG_LEVEL_MINIMAL $MSG_MOUNT_CHECK_ERROR "$1" "$2" "$rc"
 		logExit $rc
 		exitError $RC_MISC_ERROR
 	fi
@@ -6357,6 +6392,7 @@ UPDATE_POSSIBLE=0
 USE_HARDLINKS=1
 VERSION_DEPRECATED=0
 WARNING_MESSAGE_WRITTEN=0
+CLEANUP_RC=0
 
 PARAMS=""
 
@@ -6738,6 +6774,10 @@ if [[ -n "$CUSTOM_CONFIG_FILE" && -f "$CUSTOM_CONFIG_FILE" ]]; then
 	. "$CUSTOM_CONFIG_FILE"
 	set +e
 	CUSTOM_CONFIG_FILE_INCLUDED=1
+	CUSTOM_CONFIG_FILE_VERSION="$(extractVersionFromFile "$CUSTOM_CONFIG_FILE")"
+#	if [[ -n "$CUSTOM_CONFIG_FILE_VERSION" && "$CUSTOM_CONFIG_FILE_VERSION" != "$VERSION_CONFIG" ]]; then
+#		writeToConsole $MSG_LEVEL_MINIMAL $MSG_CONFIG_VERSION_DOES_NOT_MATCH "$CUSTOM_CONFIG_FILE_VERSION" "$CUSTOM_CONFIG_FILE" "$VERSION_CONFIG"
+#	fi
 fi
 
 if (( ! $RESTORE )); then
@@ -6846,21 +6886,21 @@ logger -t $MYSELF "Started $VERSION ($GIT_COMMIT_ONLY)"
 writeToConsole $MSG_LEVEL_DETAILED $MSG_USING_LOGFILE "$LOG_FILE"
 
 if (( $ETC_CONFIG_FILE_INCLUDED )); then
-	writeToConsole $MSG_LEVEL_DETAILED $MSG_INCLUDED_CONFIG "$ETC_CONFIG_FILE"
-	logItem "Read config ${ETC_CONFIG_FILE}$NL$(egrep -v '^\s*$|^#' $ETC_CONFIG_FILE)"
+	writeToConsole $MSG_LEVEL_DETAILED $MSG_INCLUDED_CONFIG "$ETC_CONFIG_FILE" # "$ETC_CONFIG_FILE_VERSION"
+	logItem "Read config ${ETC_CONFIG_FILE} : ${ETC_CONFIG_FILE_VERSION}$NL$(egrep -v '^\s*$|^#' $ETC_CONFIG_FILE)"
 fi
 if (( $HOME_CONFIG_FILE_INCLUDED )); then
-	writeToConsole $MSG_LEVEL_DETAILED $MSG_INCLUDED_CONFIG "$HOME_CONFIG_FILE"
-	logItem "Read config ${HOME_CONFIG_FILE}$NL$(egrep -v '^\s*$|^#' $HOME_CONFIG_FILE)"
+	writeToConsole $MSG_LEVEL_DETAILED $MSG_INCLUDED_CONFIG "$HOME_CONFIG_FILE" # "$HOME_CONFIG_FILE_VERSION"
+	logItem "Read config ${HOME_CONFIG_FILE} : ${HOME_CONFIG_FILE_VERSION}$NL$(egrep -v '^\s*$|^#' $HOME_CONFIG_FILE)"
 fi
 if (( $CURRENTDIR_CONFIG_FILE_INCLUDED )); then
-	writeToConsole $MSG_LEVEL_DETAILED $MSG_INCLUDED_CONFIG "$CURRENTDIR_CONFIG_FILE"
-	logItem "Read ${CURRENTDIR_CONFIG_FILE}$NL$(egrep -v '^\s*$|^#' $CURRENTDIR_CONFIG_FILE)"
+	writeToConsole $MSG_LEVEL_DETAILED $MSG_INCLUDED_CONFIG "$CURRENTDIR_CONFIG_FILE" # "$CURRENTDIR_CONFIG_FILE_VERSION"
+	logItem "Read ${CURRENTDIR_CONFIG_FILE} : ${CURRENTDIR_CONFIG_FILE_VERSION}$NL$(egrep -v '^\s*$|^#' $CURRENTDIR_CONFIG_FILE)"
 fi
 
 if (( $CUSTOM_CONFIG_FILE_INCLUDED )); then
-	writeToConsole $MSG_LEVEL_DETAILED $MSG_INCLUDED_CONFIG "$CUSTOM_CONFIG_FILE"
-	logItem "Read ${CUSTOM_CONFIG_FILE}$NL$(egrep -v '^\s*$|^#' $CUSTOM_CONFIG_FILE)"
+	writeToConsole $MSG_LEVEL_DETAILED $MSG_INCLUDED_CONFIG "$CUSTOM_CONFIG_FILE" # "$CUSTOM_CONFIG_FILE_VERSION"
+	logItem "Read ${CUSTOM_CONFIG_FILE} : ${CUSTOM_CONFIG_FILE_VERSION}$NL$(egrep -v '^\s*$|^#' $CUSTOM_CONFIG_FILE)"
 fi
 
 logOptions
