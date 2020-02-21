@@ -61,11 +61,11 @@ IS_HOTFIX=$((! $? ))
 MYSELF=${0##*/}
 MYNAME=${MYSELF%.*}
 
-GIT_DATE="$Date: 2020-02-13 17:46:08 +0100$"
+GIT_DATE="$Date: 2020-02-21 18:06:02 +0100$"
 GIT_DATE_ONLY=${GIT_DATE/: /}
 GIT_DATE_ONLY=$(cut -f 2 -d ' ' <<< $GIT_DATE)
 GIT_TIME_ONLY=$(cut -f 3 -d ' ' <<< $GIT_DATE)
-GIT_COMMIT="$Sha1: 731e152$"
+GIT_COMMIT="$Sha1: 2ce02e2$"
 GIT_COMMIT_ONLY=$(cut -f 2 -d ' ' <<< $GIT_COMMIT | sed 's/\$//')
 
 GIT_CODEVERSION="$MYSELF $VERSION, $GIT_DATE_ONLY/$GIT_TIME_ONLY - $GIT_COMMIT_ONLY"
@@ -3709,6 +3709,8 @@ function restore() {
 					exitError $RC_CREATE_PARTITIONS_FAILED
 				fi
 
+				waitForPartitionDefsChanged
+
 			elif (( $SKIP_SFDISK )); then
 				writeToConsole $MSG_LEVEL_MINIMAL $MSG_SKIP_CREATING_PARTITIONS
 
@@ -4883,9 +4885,11 @@ function doitBackup() {
 		exitError $RC_PARAMETER_ERROR
 	fi
 
-	if (( $PROGRESS )) && [[ "$BACKUPTYPE" == "$BACKUPTYPE_DD" || "$BACKUPTYPE" == "$BACKUPTYPE_DDZ" ]] && [[ $(which pv &>/dev/null) ]]; then
-		writeToConsole $MSG_LEVEL_MINIMAL $MSG_MISSING_INSTALLED_FILE "pv" "pv"
-		exitError $RC_MISSING_COMMANDS
+	if (( $PROGRESS )) && [[ "$BACKUPTYPE" == "$BACKUPTYPE_DD" || "$BACKUPTYPE" == "$BACKUPTYPE_DDZ" ]]; then
+		if ! which pv &>/dev/null; then
+			writeToConsole $MSG_LEVEL_MINIMAL $MSG_MISSING_INSTALLED_FILE "pv" "pv"
+			exitError $RC_MISSING_COMMANDS
+		fi
 	fi
 
 	if (( $PARTITIONBASED_BACKUP )); then
@@ -5205,6 +5209,10 @@ function restorePartitionBasedBackup() {
 	if ! askYesNo; then
 		writeToConsole $MSG_LEVEL_MINIMAL $MSG_RESTORE_ABORTED
 		exitError $RC_RESTORE_FAILED
+	fi
+
+	if (( $NO_YES_QUESTION )); then
+		echo "Y${NL}"
 	fi
 
 	if (( ! $SKIP_SFDISK )); then
