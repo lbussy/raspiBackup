@@ -29,9 +29,9 @@
 #######################################################################################################################
 
 if [ ! -n "$BASH" ] ;then
-   echo "??? ERROR: Unable to execute script. bash interpreter missing."
-   echo "??? DEBUG: $(lsof -a -p $$ -d txt | tail -n 1)"
-   exit 127
+	echo "??? ERROR: Unable to execute script. bash interpreter missing."
+	echo "??? DEBUG: $(lsof -a -p $$ -d txt | tail -n 1)"
+	exit 127
 fi
 
 VERSION="0.6.5-beta"	# -beta, -hotfix or -dev suffixes possible
@@ -61,11 +61,11 @@ IS_HOTFIX=$((! $? ))
 MYSELF=${0##*/}
 MYNAME=${MYSELF%.*}
 
-GIT_DATE="$Date: 2020-02-21 18:06:02 +0100$"
+GIT_DATE="$Date: 2020-02-26 17:57:30 +0100$"
 GIT_DATE_ONLY=${GIT_DATE/: /}
 GIT_DATE_ONLY=$(cut -f 2 -d ' ' <<< $GIT_DATE)
 GIT_TIME_ONLY=$(cut -f 3 -d ' ' <<< $GIT_DATE)
-GIT_COMMIT="$Sha1: 2ce02e2$"
+GIT_COMMIT="$Sha1: 40a4821$"
 GIT_COMMIT_ONLY=$(cut -f 2 -d ' ' <<< $GIT_COMMIT | sed 's/\$//')
 
 GIT_CODEVERSION="$MYSELF $VERSION, $GIT_DATE_ONLY/$GIT_TIME_ONLY - $GIT_COMMIT_ONLY"
@@ -191,6 +191,15 @@ done
 
 declare -A mountPoints
 
+# Telegram options
+
+TELEGRAM_NOTIFY_SUCCESS="S"
+TELEGRAM_NOTIFY_FAILURE="F"
+TELEGRAM_NOTIFY_MESSAGES="M"
+TELEGRAM_NOTIFY_MESSAGES2="m"
+TELEGRAM_POSSIBLE_NOTIFICATIONS="$TELEGRAM_NOTIFY_SUCCESS$TELEGRAM_NOTIFY_FAILURE$TELEGRAM_NOTIFY_MESSAGES$TELEGRAM_NOTIFY_MESSAGES2"
+TELEGRAM_URL="https://api.telegram.org/bot"
+
 # various other constants
 
 PRE_BACKUP_EXTENSION="pre"
@@ -207,7 +216,7 @@ SUPPORTED_EMAIL_PROGRAM_REGEX="^($EMAIL_MAILX_PROGRAM|$EMAIL_SSMTP_PROGRAM|$EMAI
 SUPPORTED_MAIL_PROGRAMS=$(echo $SUPPORTED_EMAIL_PROGRAM_REGEX | sed 's:^..\(.*\)..$:\1:' | sed 's/|/,/g')
 
 PARTITIONS_TO_BACKUP_ALL="*"
-MASQUERADE_STRING="@@@"
+MASQUERADE_STRING="@@@@"
 
 NEWS_AVAILABLE=0
 BETA_AVAILABLE=0
@@ -266,6 +275,7 @@ RC_MISSING_PARTITION=125
 RC_UUIDS_NOT_UNIQUE=126
 RC_INCOMPLETE_PARMS=127
 RC_CONFIGVERSION_MISMATCH=128
+RC_TELEGRAM_ERROR=129
 
 tty -s
 INTERACTIVE=!$?
@@ -978,6 +988,27 @@ MSG_DE[$MSG_INVALID_EMAIL]="RBK0225E: Ungültige eMail \"%s\"."
 MSG_CONFIG_VERSION_DOES_NOT_MATCH=226
 MSG_EN[$MSG_CONFIG_VERSION_DOES_NOT_MATCH]="RBK0226W: Found unexpected config version %s in %s. Expected version %s."
 MSG_DE[$MSG_CONFIG_VERSION_DOES_NOT_MATCH]="RBK0226W: Unerwartete Konfigurationsversion %s in %s gefunden. %s wird erwartet."
+MSG_TITLE_STARTED=227
+MSG_EN[$MSG_TITLE_STARTED]="%s: Backup started."
+MSG_DE[$MSG_TITLE_STARTED]="%s: Backup gestarted."
+MSG_TELEGRAM_SEND_FAILED=228
+MSG_EN[$MSG_TELEGRAM_SEND_FAILED]="RBK0228W: Sent to telegram failed. curl RC: %s - HTTP CODE: %s - Error description: %s."
+MSG_DE[$MSG_TELEGRAM_SEND_FAILED]="RBK0228W: Senden an Telegram fehlerhaft. curl RC: %s - HTTP CODE: %s - Fehlerbeschreibung: %s."
+MSG_TELEGRAM_SEND_OK=229
+MSG_EN[$MSG_TELEGRAM_SEND_OK]="RBK0229I: Telegram notified."
+MSG_DE[$MSG_TELEGRAM_SEND_OK]="RBK0229I: Telegram benachrichtigt."
+MSG_TELEGRAM_OPTIONS_INCOMPLETE=230
+MSG_EN[$MSG_TELEGRAM_OPTIONS_INCOMPLETE]="RBK0230E: Telegram options not complete."
+MSG_DE[$MSG_TELEGRAM_OPTIONS_INCOMPLETE]="RBK0230E: Telegrammoptionen nicht vollständig"
+MSG_TELEGRAM_SEND_LOG_FAILED=231
+MSG_EN[$MSG_TELEGRAM_SEND_LOG_FAILED]="RBK0231W: Send of messages to Telegram failed. curl RC: %s."
+MSG_DE[$MSG_TELEGRAM_SEND_LOG_FAILED]="RBK0231W: Senden von Meldungen an Telegram fehlerhaft. curl RC: %s."
+MSG_TELEGRAM_SEND_LOG_OK=232
+MSG_EN[$MSG_TELEGRAM_SEND_LOG_OK]="RBK0232I: Messages to Telegram sent."
+MSG_DE[$MSG_TELEGRAM_SEND_LOG_OK]="RBK0232I: Meldungen an Telegram gesendet."
+MSG_TELEGRAM_INVALID_NOTIFICATION=233
+MSG_EN[$MSG_TELEGRAM_INVALID_NOTIFICATION]="RBK0233E: Invalid Telegram notification %s detected. Valid notifications are %s."
+MSG_DE[$MSG_TELEGRAM_INVALID_NOTIFICATION]="RBK0233E: Ungültige Telegram Notification %s eingegeben. Mögliche Notifikationen sind %s."
 
 declare -A MSG_HEADER=( ['I']="---" ['W']="!!!" ['E']="???" )
 
@@ -1436,6 +1467,7 @@ function logOptions() {
 	logItem "MAIL_ON_ERROR_ONLY=$MAIL_ON_ERROR_ONLY"
 	logItem "MAIL_PROGRAM=$EMAIL_PROGRAM"
 	logItem "MSG_LEVEL=$MSG_LEVEL"
+	logItem "NOTIFY_START=$NOTIFY_START"
 	logItem "NOTIFY_UPDATE=$NOTIFY_UPDATE"
 	logItem "PARTITIONBASED_BACKUP=$PARTITIONBASED_BACKUP"
 	logItem "PARTITIONS_TO_BACKUP=$PARTITIONS_TO_BACKUP"
@@ -1459,6 +1491,9 @@ function logOptions() {
 	logItem "TAR_BOOT_PARTITION_ENABLED=$TAR_BOOT_PARTITION_ENABLED"
 	logItem "TAR_IGNORE_ERRORS=$TAR_IGNORE_ERRORS"
 	logItem "TAR_RESTORE_ADDITIONAL_OPTIONS=$TAR_RESTORE_ADDITIONAL_OPTIONS"
+	logItem "TELEGRAM_TOKEN=$TELEGRAM_TOKEN"
+	logItem "TELEGRAM_CHATID=$TELEGRAM_CHATID"
+	logItem "TELEGRAM_NOTIFICATIONS=$TELEGRAM_NOTIFICATIONS"
 	logItem "TIMESTAMPS=$TIMESTAMPS"
 	logItem "UPDATE_UUIDS=$UPDATE_UUIDS"
 	logItem "USE_HARDLINKS=$USE_HARDLINKS"
@@ -1588,6 +1623,15 @@ function initializeDefaultConfig() {
 	DEFAULT_IGNORE_ADDITIONAL_PARTITIONS=0
 	# apply 7412 backup cleanup - WARNING: will delete backups - only use if you know what you're doing
 	DEFAULT_APPLY7412=0
+	# notify in email and telegram when backup starts
+	DEFAULT_NOTIFY_START=0
+	# Telegram token
+	DEFAULT_TELEGRAM_TOKEN=""
+	# Telegram target chatid
+	DEFAULT_TELEGRAM_CHATID=""
+	# Telegram notifications to send. S(uccess), F(ailure), M(messages as file), m(essages as text)
+	DEFAULT_TELEGRAM_NOTIFICATIONS="F"
+
 
 	############# End default config section #############
 
@@ -1628,6 +1672,7 @@ function initializeConfig() {
 	[[ -z "$LOG_OUTPUT" ]] && LOG_OUTPUT="$DEFAULT_LOG_OUTPUT"
 	[[ -z "$MAIL_ON_ERROR_ONLY" ]] && MAIL_ON_ERROR_ONLY="$DEFAULT_MAIL_ON_ERROR_ONLY"
 	[[ -z "$MSG_LEVEL" ]] && MSG_LEVEL="$DEFAULT_MSG_LEVEL"
+	[[ -z "$NOTIFY_START" ]] && NOTIFY_START="$DEFAULT_NOTIFY_START"
 	[[ -z "$NOTIFY_UPDATE" ]] && NOTIFY_UPDATE="$DEFAULT_NOTIFY_UPDATE"
 	[[ -z "$PARTITIONBASED_BACKUP" ]] && PARTITIONBASED_BACKUP="$DEFAULT_PARTITIONBASED_BACKUP"
 	[[ -z "$PARTITIONS_TO_BACKUP" ]] && PARTITIONS_TO_BACKUP="$DEFAULT_PARTITIONS_TO_BACKUP"
@@ -1649,6 +1694,9 @@ function initializeConfig() {
 	[[ -z "$TAR_BACKUP_OPTIONS" ]] && TAR_BACKUP_OPTIONS="$DEFAULT_TAR_BACKUP_OPTIONS"
 	[[ -z "$TAR_BOOT_PARTITION_ENABLED" ]] && TAR_BOOT_PARTITION_ENABLED="$DEFAULT_TAR_BOOT_PARTITION_ENABLED"
 	[[ -z "$TAR_RESTORE_ADDITIONAL_OPTIONS" ]] && TAR_RESTORE_ADDITIONAL_OPTIONS="$DEFAULT_TAR_RESTORE_ADDITIONAL_OPTIONS"
+	[[ -z "$TELEGRAM_CHATID" ]] && TELEGRAM_CHATID="$DEFAULT_TELEGRAM_CHATID"
+	[[ -z "$TELEGRAM_NOTIFICATIONS" ]] && TELEGRAM_NOTIFICATIONS="$DEFAULT_TELEGRAM_NOTIFICATIONS"
+	[[ -z "$TELEGRAM_TOKEN" ]] && TELEGRAM_TOKEN="$DEFAULT_TELEGRAM_TOKEN"
 	[[ -z "$TIMESTAMPS" ]] && TIMESTAMPS="$DEFAULT_TIMESTAMPS"
 	[[ -z "$UPDATE_UUIDS" ]] && UPDATE_UUIDS="$DEFAULT_UPDATE_UUIDS"
 	[[ -z "$USE_HARDLINKS" ]] && USE_HARDLINKS="$DEFAULT_USE_HARDLINKS"
@@ -2497,7 +2545,7 @@ function deployMyself() {
 		fi
 	done
 
-   	logExit
+		logExit
 
 }
 
@@ -2556,6 +2604,75 @@ function calcSumSizeFromSFDISK() { # sfdisk file name
 	echo "$sumSize"
 
 	logExit "$sumSize"
+}
+
+function sendTelegramDocument() { # filename
+
+		logEntry "$1"
+
+		local rsp="$(curl -s -X GET $TELEGRAM_URL$TELEGRAM_TOKEN/sendDocument -F chat_id=$TELEGRAM_CHATID -F document=@$MSG_FILE)"
+		local curlRC=$?
+		logItem "Telegram response:${NL}${rsp}"
+
+		ok=$(jq .ok <<< "$rsp")
+		if [[ $ok == "true" ]]; then
+			logItem "Log sent"
+			writeToConsole $MSG_LEVEL_MINIMAL $MSG_TELEGRAM_SEND_LOG_OK
+		else
+			writeToConsole $MSG_LEVEL_MINIMAL $MSG_TELEGRAM_SEND_LOG_FAILED $curlRC
+		fi
+
+		logExit
+}
+
+# Send message, exit
+
+function sendTelegramMessage() { # message html (yes/no)
+
+		logEntry "$1"
+
+		if [[ -z $2 ]]; then
+			local rsp="$(curl -s -X POST $TELEGRAM_URL$TELEGRAM_TOKEN/sendMessage -d chat_id=$TELEGRAM_CHATID -d text="$1")"
+		else
+			local rsp="$(curl -s -X POST $TELEGRAM_URL$TELEGRAM_TOKEN/sendMessage -d chat_id=$TELEGRAM_CHATID -d text="$1" -d parse_mode=html)"
+		fi
+
+		local curlRC=$?
+		logItem "Telegram response:${NL}${rsp}"
+
+		ok=$(jq .ok <<< "$rsp")
+		if [[ $ok == "true" ]]; then
+			logItem "Message sent"
+			writeToConsole $MSG_LEVEL_MINIMAL $MSG_TELEGRAM_SEND_OK
+		else
+			error_code="$(jq .error_code  <<< "$rsp")"
+			error_description="$(jq .description <<< "$rsp")"
+			logItem "Error sending msg: $rsp"
+			writeToConsole $MSG_LEVEL_MINIMAL $MSG_TELEGRAM_SEND_FAILED "$curlRC" "$error_code" "$error_description"
+		fi
+
+		logExit
+}
+
+function sendTelegramm() { # subject
+
+	logEntry "$1"
+
+	if [[ -n "$TELEGRAM_TOKEN" && rc != $RC_CTRLC ]]; then
+
+		sendTelegramMessage "$1" 1 # html
+
+		if [[ "$TELEGRAM_NOTIFICATIONS" =~ $TELEGRAM_NOTIFY_MESSAGES2 ]]; then
+			sendTelegramMessage "$(<$MSG_FILE)" # no html
+		fi
+
+		if [[ "$TELEGRAM_NOTIFICATIONS" =~ $TELEGRAM_NOTIFY_MESSAGES ]]; then
+			sendTelegramDocument "$MSG_FILE"
+		fi
+		logExit "$ok"
+
+	fi
+
 }
 
 function sendEMail() { # content subject
@@ -2721,13 +2838,64 @@ function cleanupBackupDirectory() {
 	logExit
 }
 
+# return text masqueraded
+#
+# Algorithm:
+#
+# if string lenght < 8 return @@@@(<string length>)
+# if string lenght < 16 return first char followed by @*<string length-2> followed by last char
+# otherwise return first char followed by @@@@ followed by last char and (<string length>)
+
+function masquerade() { # text
+
+	[[ -z "$1" ]] && return 1
+
+	local t="$1"
+	local l="${#t}"
+	local lm="\($l\)"
+
+	if (( $l < 8 )); then
+		echo "$MASQUERADE_STRING$l"
+		return 0
+	fi
+
+	local s=${t:0:1}
+	local e=${t: -1}
+
+	if (( $l < 16 )); then
+		local m="$(yes ${MASQUERADE_STRING:0:1} | head -n $(($l-2)) | tr -d "\n" )"
+		echo "$s$m$e"
+	else
+		echo "$s$MASQUERADE_STRING$e$lm"
+	fi
+	return 0
+}
+
 function masqueradeSensitiveInfoInLog() {
 
-	sed -i -E "s/EMAIL=.+$/EMAIL=${MASQUERADE_STRING}\n/" $LOG_FILE
-	sed -i -E "s/EMAIL_PARMS=.+$/EMAIL_PARMS=${MASQUERADE_STRING}\n/" $LOG_FILE # may contain passwords
+	# no logging any more
+
+	local m
+
+	if [[ -n "$EMAIL" ]]; then
+		m="$(masquerade "$EMAIL")"
+		sed -i -E "s/$EMAIL/${m}/" $LOG_FILE
+	fi
+
+	if [[ -n "$EMAIL_PARMS" ]]; then
+		m="$(masquerade "$EMAIL_PARMS")"
+		sed -i -E "s/$EMAIL_PARMS/${m}/" $LOG_FILE # may contain passwords
+	fi
 
 	sed -i -E "s/username=[^,]+\,/username=${MASQUERADE_STRING},/" $LOG_FILE # used in cifs mount options
 	sed -i -E "s/domain=[^,]+\,/domain=${MASQUERADE_STRING},/" $LOG_FILE
+
+	if	m="$(masquerade $TELEGRAM_TOKEN)"; then
+		sed -i -E "s/${TELEGRAM_TOKEN}/${m}/" $LOG_FILE
+	fi
+	if m="$(masquerade $TELEGRAM_CHATID)"; then
+		sed -i -E "s/${TELEGRAM_CHATID}/${m}/" $LOG_FILE
+	fi
 }
 
 function cleanup() { # trap
@@ -2963,6 +3131,13 @@ function cleanupBackup() { # trap
 			sendEMail "$msg" "$msgTitle"
 		fi
 
+		if [[ $rc != $RC_CTRLC && -n "$TELEGRAM_TOKEN"  ]]; then
+			msg=$(getLocalizedMessage $MSG_TITLE_ERROR $HOSTNAME)
+			if [[ "$TELEGRAM_NOTIFICATIONS" =~ $TELEGRAM_NOTIFY_FAILURE ]]; then
+				sendTelegramm "<b><u> $msg </u></b>"
+			fi
+		fi
+
 	else
 
 		if (( ! $MAIL_ON_ERROR_ONLY )); then
@@ -2970,6 +3145,13 @@ function cleanupBackup() { # trap
 				writeToConsole $MSG_LEVEL_MINIMAL $MSG_BACKUP_WARNING
 			else
 				writeToConsole $MSG_LEVEL_MINIMAL $MSG_BACKUP_OK
+			fi
+		fi
+
+		if [[ -n "$TELEGRAM_TOKEN"  ]]; then
+			msg=$(getLocalizedMessage $MSG_TITLE_OK $HOSTNAME)
+			if [[ "$TELEGRAM_NOTIFICATIONS" =~ $TELEGRAM_NOTIFY_SUCCESS ]]; then
+				sendTelegramm "$msg"
 			fi
 		fi
 
@@ -4840,6 +5022,23 @@ function doitBackup() {
 		exitError $RC_PARAMETER_ERROR
 	fi
 
+	if [[ -n "$TELEGRAM_CHATID" && -z "$TELEGRAM_TOKEN" ]] || [[ -z "$TELEGRAM_CHATID" && -n "$TELEGRAM_TOKEN" ]]; then
+		writeToConsole $MSG_LEVEL_MINIMAL $MSG_TELEGRAM_OPTIONS_INCOMPLETE
+		exitError $RC_PARAMETER_ERROR
+	fi
+
+	if [[ -n "$TELEGRAM_CHATID" && -n "$TELEGRAM_TOKEN" ]]; then
+		if ! which jq &>/dev/null; then
+			writeToConsole $MSG_LEVEL_MINIMAL $MSG_MISSING_INSTALLED_FILE "jq" "jq"
+			exitError $RC_MISSING_COMMANDS
+		fi
+		local invalidNotification="$(tr -d "$TELEGRAM_POSSIBLE_NOTIFICATIONS" <<< "$TELEGRAM_NOTIFICATIONS")"
+		if [[ -n "$invalidNotification" ]]; then
+			writeToConsole $MSG_LEVEL_MINIMAL $MSG_TELEGRAM_INVALID_NOTIFICATION "$invalidNotification" "$TELEGRAM_POSSIBLE_NOTIFICATIONS"
+			exitError $RC_PARAMETER_ERROR
+		fi
+	fi
+
 	if [[ "$BACKUPTYPE" == "$BACKUPTYPE_RSYNC" ]]; then
 		if ! which rsync &>/dev/null; then
 			writeToConsole $MSG_LEVEL_MINIMAL $MSG_MISSING_INSTALLED_FILE "rsync" "rsync"
@@ -6476,10 +6675,10 @@ while (( "$#" )); do
 	-E)
 	  o=$(checkOptionParameter "$1" "$2");
 	  (( $? )) && exitError $RC_PARAMETER_ERROR
-      EMAIL_PARMS="$o"; shift 2
-      ;;
+	  EMAIL_PARMS="$o"; shift 2
+	  ;;
 
-    -f)
+	-f)
 	  o=$(checkOptionParameter "$1" "$2")
 	  (( $? )) && exitError $RC_PARAMETER_ERROR
 	  CUSTOM_CONFIG_FILE="$o"; shift 2
@@ -6489,12 +6688,12 @@ while (( "$#" )); do
 	  fi
 	  if [[ ! -f "$CUSTOM_CONFIG_FILE" ]]; then
 		writeToConsole $MSG_LEVEL_MINIMAL $MSG_FILE_ARG_NOT_FOUND "$CUSTOM_CONFIG_FILE"
-        exitError $RC_MISSING_FILES
+		exitError $RC_MISSING_FILES
 	  fi
 	  CUSTOM_CONFIG_FILE="$(readlink -f "$CUSTOM_CONFIG_FILE")"
 	  ;;
 
-    -F|-F[-+])
+	-F|-F[-+])
 	  FAKE=$(getEnableDisableOption "$1"); shift 1
 	  ;;
 
@@ -6605,6 +6804,10 @@ while (( "$#" )); do
 	  EXTENSIONS="$o"; shift 2
 	  ;;
 
+	--notifyStart|--notifyStart[-+])
+	  NOTIFY_START=$(getEnableDisableOption "$1"); shift 1
+	  ;;
+
 	-o)
 	  o=$(checkOptionParameter "$1" "$2")
 	  (( $? )) && exitError $RC_PARAMETER_ERROR
@@ -6616,7 +6819,7 @@ while (( "$#" )); do
 	  (( $? )) && exitError $RC_PARAMETER_ERROR
 	  BACKUPPATH="$o"; shift 2
 	  if hasSpaces "$BACKUPPATH"; then
-	    writeToConsole $MSG_LEVEL_MINIMAL $MSG_FILE_CONTAINS_SPACES "$BACKUPPATH"
+		writeToConsole $MSG_LEVEL_MINIMAL $MSG_FILE_CONTAINS_SPACES "$BACKUPPATH"
 		exitError $RC_MISC_ERROR
 	  fi
 	  if [[ ! -d "$BACKUPPATH" ]]; then
@@ -6635,7 +6838,7 @@ while (( "$#" )); do
 	  (( $? )) && exitError $RC_PARAMETER_ERROR
 	  RESTOREFILE="$o"; shift 2
 	  if hasSpaces "$RESTOREFILE"; then
-	    writeToConsole $MSG_LEVEL_MINIMAL $MSG_FILE_CONTAINS_SPACES "$RESTOREFILE"
+		writeToConsole $MSG_LEVEL_MINIMAL $MSG_FILE_CONTAINS_SPACES "$RESTOREFILE"
 		exitError $RC_MISC_ERROR
 	  fi
 	  if [[ ! -d "$RESTOREFILE" && ! -f "$RESTOREFILE" ]]; then
@@ -6702,6 +6905,24 @@ while (( "$#" )); do
 	  checkOptionParameter "$1" "$2"
 	  (( $? )) && exitError $RC_PARAMETER_ERROR
 	  PARTITIONS_TO_BACKUP="$2"; shift 2
+	  ;;
+
+	--telegramToken)
+	  o="$(checkOptionParameter "$1" "$2")"
+	  (( $? )) && exitError $RC_PARAMETER_ERROR
+	  TELEGRAM_TOKEN="$o"; shift 2
+	  ;;
+
+	--telegramChatID)
+	  o="$(checkOptionParameter "$1" "$2")"
+	  (( $? )) && exitError $RC_PARAMETER_ERROR
+	  TELEGRAM_CHATID="$o"; shift 2
+	  ;;
+
+	--telegramNotifications)
+	  o="$(checkOptionParameter "$1" "$2")"
+	  (( $? )) && exitError $RC_PARAMETER_ERROR
+	  TELEGRAM_NOTIFICATIONS="$o"; shift 2
 	  ;;
 
 	-u)
@@ -6886,6 +7107,15 @@ setupEnvironment
 
 writeToConsole $MSG_LEVEL_MINIMAL $MSG_STARTED "$HOSTNAME" "$MYSELF" "$VERSION" "$GIT_COMMIT_ONLY" "$(date)"
 logger -t $MYSELF "Started $VERSION ($GIT_COMMIT_ONLY)"
+if (( "$NOTIFY_START" && ( ! $INTERACTIVE || $FAKE ) )) ; then
+	if [[ -n "$EMAIL"  ]]; then
+		msg="$(getLocalizedMessage $MSG_TITLE_STARTED "$HOSTNAME")"
+		sendEMail "" "$msg"
+	fi
+	if [[ -n "$TELEGRAM_TOKEN"  ]]; then
+		sendTelegramm "$msg"
+	fi
+fi
 
 (( $IS_BETA )) && writeToConsole $MSG_LEVEL_MINIMAL $MSG_INTRO_BETA_MESSAGE
 (( $IS_DEV )) && writeToConsole $MSG_LEVEL_MINIMAL $MSG_INTRO_DEV_MESSAGE
