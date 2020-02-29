@@ -61,11 +61,11 @@ IS_HOTFIX=$((! $? ))
 MYSELF=${0##*/}
 MYNAME=${MYSELF%.*}
 
-GIT_DATE="$Date: 2020-02-26 17:57:30 +0100$"
+GIT_DATE="$Date: 2020-02-29 21:06:49 +0100$"
 GIT_DATE_ONLY=${GIT_DATE/: /}
 GIT_DATE_ONLY=$(cut -f 2 -d ' ' <<< $GIT_DATE)
 GIT_TIME_ONLY=$(cut -f 3 -d ' ' <<< $GIT_DATE)
-GIT_COMMIT="$Sha1: 40a4821$"
+GIT_COMMIT="$Sha1: 84a646f$"
 GIT_COMMIT_ONLY=$(cut -f 2 -d ' ' <<< $GIT_COMMIT | sed 's/\$//')
 
 GIT_CODEVERSION="$MYSELF $VERSION, $GIT_DATE_ONLY/$GIT_TIME_ONLY - $GIT_COMMIT_ONLY"
@@ -217,6 +217,10 @@ SUPPORTED_MAIL_PROGRAMS=$(echo $SUPPORTED_EMAIL_PROGRAM_REGEX | sed 's:^..\(.*\)
 
 PARTITIONS_TO_BACKUP_ALL="*"
 MASQUERADE_STRING="@@@@"
+
+COLORING_CONSOLE="C"
+COLORING_MAIL="M"
+COLORING_VALID_OPTIONS="$COLORING_CONSOLE$COLORING_MAIL"
 
 NEWS_AVAILABLE=0
 BETA_AVAILABLE=0
@@ -1009,6 +1013,12 @@ MSG_DE[$MSG_TELEGRAM_SEND_LOG_OK]="RBK0232I: Meldungen an Telegram gesendet."
 MSG_TELEGRAM_INVALID_NOTIFICATION=233
 MSG_EN[$MSG_TELEGRAM_INVALID_NOTIFICATION]="RBK0233E: Invalid Telegram notification %s detected. Valid notifications are %s."
 MSG_DE[$MSG_TELEGRAM_INVALID_NOTIFICATION]="RBK0233E: Ungültige Telegram Notification %s eingegeben. Mögliche Notifikationen sind %s."
+MSG_INVALID_COLORING_OPTION=234
+MSG_EN[$MSG_INVALID_COLORING_OPTION]="RBK0234E: Invalid coloring option %s detected."
+MSG_DE[$MSG_INVALID_COLORING_OPTION]="RBK0234E: Ungültige Färbungsoption %s entdeckt."
+MSG_INVALID_TRUE_FALSE_OPTION=235
+MSG_EN[$MSG_INVALID_TRUE_FALSE_OPTION]="RBK0235E: Invalid true/false option %s for %s detected. Should be on, off, 0 or 1."
+MSG_DE[$MSG_INVALID_TRUE_FALSE_OPTION]="RBK0235E: Ungültige an/aus Option %s für %s entdeckt. Es sollte an, aus, 0 oder 1 sein."
 
 declare -A MSG_HEADER=( ['I']="---" ['W']="!!!" ['E']="???" )
 
@@ -1193,10 +1203,14 @@ function writeToConsole() {  # msglevel messagenumber message
 		fi
 
 		if (( $INTERACTIVE )); then
-			if [[ $msgSev == "E" || $msgSev == "W" ]]; then
-				echo $noNL -e "$timestamp$msg" >&2
+			local consoleMsg="$timestamp$msg"
+			if [[ "$COLORING" =~ $COLORING_CONSOLE ]]; then
+				consoleMsg="$(colorAnnotation $COLOR_TYPE_VT100 "$consoleMsg")"
+			fi
+			if [[ $msgSev == "E" ]]; then
+				echo $noNL -e "$consoleMsg" >&2
 			else
-				echo $noNL -e "$timestamp$msg" >&1
+				echo $noNL -e "$consoleMsg" >&1
 			fi
 		fi
 
@@ -1441,6 +1455,7 @@ function logOptions() {
 	logItem "AFTER_STARTSERVICES=$AFTER_STARTSERVICES"
 	logItem "BEFORE_STOPSERVICES=$BEFORE_STOPSERVICES"
 	logItem "CHECK_FOR_BAD_BLOCKS=$CHECK_FOR_BAD_BLOCKS"
+ 	logItem "COLORING=$COLORING"
  	logItem "CONFIG_FILE=$CONFIG_FILE"
  	logItem "DD_BACKUP_SAVE_USED_PARTITIONS_ONLY=$DD_BACKUP_SAVE_USED_PARTITIONS_ONLY"
  	logItem "DD_BLOCKSIZE=$DD_BLOCKSIZE"
@@ -1631,7 +1646,8 @@ function initializeDefaultConfig() {
 	DEFAULT_TELEGRAM_CHATID=""
 	# Telegram notifications to send. S(uccess), F(ailure), M(messages as file), m(essages as text)
 	DEFAULT_TELEGRAM_NOTIFICATIONS="F"
-
+	# Colorize console output (C) and/or email (E)
+	DEFAULT_COLORING="CM"
 
 	############# End default config section #############
 
@@ -1643,6 +1659,7 @@ function initializeConfig() {
 
 	# initialize options with defaults from configs if no command line arg was passed
 	[[ -z "$APPEND_LOG" ]] && APPEND_LOG="$DEFAULT_APPEND_LOG"
+	# verifyIsOnOff "APPEND_LOG"
 	[[ -z "$APPEND_LOG_OPTION" ]] && APPEND_LOG_OPTION="$DEFAULT_APPEND_LOG_OPTION"
 	[[ -z "$APPLY7412" ]] && APPLY7412="$DEFAULT_APPLY7412"
 	[[ -z "$BACKUPPATH" ]] && BACKUPPATH="$DEFAULT_BACKUPPATH"
@@ -1650,6 +1667,7 @@ function initializeConfig() {
 	[[ -z "$AFTER_STARTSERVICES" ]] && AFTER_STARTSERVICES="$DEFAULT_AFTER_STARTSERVICES"
 	[[ -z "$BEFORE_STOPSERVICES" ]] && BEFORE_STOPSERVICES="$DEFAULT_BEFORE_STOPSERVICES"
 	[[ -z "$CHECK_FOR_BAD_BLOCKS" ]] && CHECK_FOR_BAD_BLOCKS="$DEFAULT_CHECK_FOR_BAD_BLOCKS"
+	[[ -z "$COLORING" ]] && COLORING="$DEFAULT_COLORING"
 	[[ -z "$DD_BACKUP_SAVE_USED_PARTITIONS_ONLY" ]] && DD_BACKUP_SAVE_USED_PARTITIONS_ONLY="$DEFAULT_DD_BACKUP_SAVE_USED_PARTITIONS_ONLY"
 	[[ -z "$DD_BLOCKSIZE" ]] && DD_BLOCKSIZE="$DEFAULT_DD_BLOCKSIZE"
 	[[ -z "$DD_PARMS" ]] && DD_PARMS="$DEFAULT_DD_PARMS"
@@ -1967,6 +1985,24 @@ function shouldRenewDownloadPropertiesFile() { # FORCE
 
 	logExit "$rc"
 	return $rc
+}
+
+function verifyIsOnOff() { # arg
+
+	local v=${!1}
+	local uc="${v^^}"
+
+	case "$uc" in
+		ON|TRUE|AN|1) : echo "1"
+			return
+			;;
+		OFF|FALSE|AUS|0) : echo "0"
+			return
+			;;
+	esac
+
+	writeToConsole $MSG_LEVEL_MINIMAL $MSG_INVALID_TRUE_FALSE_OPTION "$v" "$1"
+	exitError $RC_PARAMETER_ERROR
 }
 
 function askYesNo() {
@@ -2606,6 +2642,63 @@ function calcSumSizeFromSFDISK() { # sfdisk file name
 	logExit "$sumSize"
 }
 
+# colorAnnotation
+
+# html vt100
+COLOR_WARNING=0
+COLOR_ERROR=1
+# yellow red
+COLOR_CODES=("#FF8000 33" "#FF0000 31")
+COLOR_TYPE_HTML=0
+COLOR_TYPE_VT100=1
+
+COLOR_ON=("<span style="color:\%s">" "\e[1;%sm")
+COLOR_OFF=("</span></br>" "\e[0m")
+
+function colorOn() { # colortype color
+	local on="${COLOR_ON[$1]}"
+	local color="${COLOR_CODES[$2]}"
+	color=($color)
+	printf -v r "$on" "${color[$1]}"
+	echo -e -n "$r"
+}
+
+function colorOff() { # colortype color
+	local off="${COLOR_OFF[$1]}"
+	echo -e -n "$off"
+}
+
+# add color annotations for console and/or email
+
+function colorAnnotation() { # colortype text
+
+	logEntry "$@"
+
+	colorType="$1"
+	shift
+	local line
+	while IFS= read -r line; do
+	  if [[ "$line" =~ RBK....W ]]; then
+			colorOn $colorType $COLOR_WARNING
+			echo -n "$line"
+			colorOff $colorType
+			echo
+		elif [[ "$line" =~ RBK....E ]]; then
+			colorOn $colorType $COLOR_ERROR
+			echo -n "$line"
+			colorOff $colorType
+			echo
+		else
+			if [[ $colorType == "$COLOR_TYPE_HTML" ]]; then
+				echo "$line</br>"
+			else
+				echo "$line"
+			fi
+		fi
+	done <<< "$@"
+	logExit
+}
+
 function sendTelegramDocument() { # filename
 
 		logEntry "$1"
@@ -2658,7 +2751,10 @@ function sendTelegramm() { # subject
 
 	logEntry "$1"
 
-	if [[ -n "$TELEGRAM_TOKEN" && rc != $RC_CTRLC ]]; then
+	if ! which jq &>/dev/null; then # suppress error message when jq is not installed
+		writeToConsole $MSG_LEVEL_MINIMAL $MSG_MISSING_INSTALLED_FILE "jq" "jq"
+
+	elif [[ -n "$TELEGRAM_TOKEN" && rc != $RC_CTRLC ]] ; then
 
 		sendTelegramMessage "$1" 1 # html
 
@@ -2695,6 +2791,11 @@ function sendEMail() { # content subject
 			IFS=" "
 			content="$NL$(<"$MSG_FILE")$NL$1$NL"
 			unset IFS
+
+			if [[ "$COLORING" =~ $COLORING_MAIL ]]; then
+				content="$(colorAnnotation $COLOR_TYPE_HTML "$content")"
+			fi
+
 		fi
 
 		local smiley=""
@@ -2718,6 +2819,10 @@ function sendEMail() { # content subject
 
 		subject="$smiley$subject"
 
+		if [[ "$COLORING" =~ $COLORING_MAIL ]]; then
+			subject=$(echo -e "$subject\nContent-Type: text/html")
+		fi
+
 		if (( ! $MAIL_ON_ERROR_ONLY || ( $MAIL_ON_ERROR_ONLY && ( rc != 0 || ( $NOTIFY_UPDATE && $NEWS_AVAILABLE ) ) ) )); then
 
 			writeToConsole $MSG_LEVEL_DETAILED $MSG_SENDING_EMAIL
@@ -2730,11 +2835,13 @@ function sendEMail() { # content subject
 			local rc
 			case $EMAIL_PROGRAM in
 				$EMAIL_MAILX_PROGRAM)
-					echo "$content" | "$EMAIL_PROGRAM" $EMAIL_PARMS -s "$subject" $attach "$EMAIL"
+					logItem "$EMAIL_PROGRAM $EMAIL_PARMS -s "$subject" $attach $EMAIL <<< $content"
+					"$EMAIL_PROGRAM" $EMAIL_PARMS -s "$subject" $attach "$EMAIL" <<< "$content"
 					rc=$?
 					logItem "$EMAIL_PROGRAM: RC: $rc"
 					;;
 				$EMAIL_SENDEMAIL_PROGRAM)
+					logItem "echo $content | $EMAIL_PROGRAM $EMAIL_PARMS -u "$subject" $attach -t $EMAIL"
 					echo "$content" | "$EMAIL_PROGRAM" $EMAIL_PARMS -u "$subject" $attach -t "$EMAIL"
 					rc=$?
 					logItem "$EMAIL_PROGRAM: RC: $rc"
@@ -2752,6 +2859,7 @@ function sendEMail() { # content subject
 					else
 						local sender=${SENDER_EMAIL:-root@$(hostname -f)}
 						logItem "Sendig email with s/msmtp"
+						logItem "echo -e To: $EMAIL\nFrom: $sender\nSubject: $subject\n$content | $EMAIL_PROGRAM $msmtp_default $EMAIL"
 						echo -e "To: $EMAIL\nFrom: $sender\nSubject: $subject\n$content" | "$EMAIL_PROGRAM" $msmtp_default "$EMAIL"
 						rc=$?
 						logItem "$EMAIL_PROGRAM: RC: $rc"
@@ -3116,13 +3224,16 @@ function cleanupBackup() { # trap
 	fi
 
 	if (( $rc != 0 )); then
-		writeToConsole $MSG_LEVEL_MINIMAL $MSG_BACKUP_FAILED
 
 		echo "Invocation parms: '$INVOCATIONPARMS'" >> "$LOG_FILE"
 
 		if (( $rc == $RC_STOP_SERVICES_ERROR )) || (( $STOPPED_SERVICES )) || (( $BEFORE_STOPPED_SERVICES )); then
 			startServices "noexit"
 			executeAfterStartServices "noexit"
+		fi
+
+		if [[ -z $EMAIL ]]; then
+			writeToConsole $MSG_LEVEL_MINIMAL $MSG_BACKUP_FAILED
 		fi
 
 		if [[ $rc != $RC_CTRLC && $rc != $RC_EMAILPROG_ERROR ]]; then
@@ -4667,6 +4778,12 @@ function commonChecks() {
 				APPEND_LOG=0
 			fi
 		fi
+	fi
+
+	local co="$(tr -d "$COLORING_VALID_OPTIONS" <<< $COLORING)"
+	if [[ -n "$COLORING" && -n "$co" ]]; then
+			writeToConsole $MSG_LEVEL_MINIMAL $MSG_INVALID_COLORING_OPTION "$co"
+			exitError $RC_PARAMETER_ERROR
 	fi
 
 	logExit
@@ -6652,6 +6769,12 @@ while (( "$#" )); do
 
 	-C|-C[-+])
 	  CHECK_FOR_BAD_BLOCKS=$(getEnableDisableOption "$1"); shift 1
+	  ;;
+
+	--coloring)
+	  o=$(checkOptionParameter "$1" "$2")
+	  (( $? )) && exitError $RC_PARAMETER_ERROR
+	  COLORING="$o"; shift 2
 	  ;;
 
 	-d)
