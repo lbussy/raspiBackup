@@ -30,8 +30,8 @@
 
 VERSION="v0.2"
 
-GIT_DATE="$Date: 2020-01-13 19:46:38 +0100$"
-GIT_COMMIT="$Sha1: aa2d7b5$"
+GIT_DATE="$Date: 2020-02-24 12:31:14 +0100$"
+GIT_COMMIT="$Sha1: d2acd2d$"
 
 trap startAllServices EXIT ERR
 

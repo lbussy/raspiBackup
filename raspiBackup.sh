@@ -61,11 +61,11 @@ IS_HOTFIX=$((! $? ))
 MYSELF=${0##*/}
 MYNAME=${MYSELF%.*}
 
-GIT_DATE="$Date: 2020-02-29 21:06:49 +0100$"
+GIT_DATE="$Date: 2020-03-04 23:54:34 +0100$"
 GIT_DATE_ONLY=${GIT_DATE/: /}
 GIT_DATE_ONLY=$(cut -f 2 -d ' ' <<< $GIT_DATE)
 GIT_TIME_ONLY=$(cut -f 3 -d ' ' <<< $GIT_DATE)
-GIT_COMMIT="$Sha1: 84a646f$"
+GIT_COMMIT="$Sha1: 1170419$"
 GIT_COMMIT_ONLY=$(cut -f 2 -d ' ' <<< $GIT_COMMIT | sed 's/\$//')
 
 GIT_CODEVERSION="$MYSELF $VERSION, $GIT_DATE_ONLY/$GIT_TIME_ONLY - $GIT_COMMIT_ONLY"
@@ -218,6 +218,7 @@ SUPPORTED_MAIL_PROGRAMS=$(echo $SUPPORTED_EMAIL_PROGRAM_REGEX | sed 's:^..\(.*\)
 PARTITIONS_TO_BACKUP_ALL="*"
 MASQUERADE_STRING="@@@@"
 
+COLORING_OFF=""
 COLORING_CONSOLE="C"
 COLORING_MAIL="M"
 COLORING_VALID_OPTIONS="$COLORING_CONSOLE$COLORING_MAIL"
@@ -1019,6 +1020,9 @@ MSG_DE[$MSG_INVALID_COLORING_OPTION]="RBK0234E: Ungültige Färbungsoption %s en
 MSG_INVALID_TRUE_FALSE_OPTION=235
 MSG_EN[$MSG_INVALID_TRUE_FALSE_OPTION]="RBK0235E: Invalid true/false option %s for %s detected. Should be on, off, 0 or 1."
 MSG_DE[$MSG_INVALID_TRUE_FALSE_OPTION]="RBK0235E: Ungültige an/aus Option %s für %s entdeckt. Es sollte an, aus, 0 oder 1 sein."
+MSG_PARTITION_MODE_NO_LONGER_SUPPORTED=236
+MSG_EN[$MSG_PARTITION_MODE_NO_LONGER_SUPPORTED]="RBK0236W: Partition oriented backup will not be maintained any more and disable somewhere in the future."
+MSG_DE[$MSG_PARTITION_MODE_NO_LONGER_SUPPORTED]="RBK0236W: Partitionsorientierter Modus wird nicht mehr weiter gewartet und irgendwann in Zukunft nicht mehr verfügbar sein."
 
 declare -A MSG_HEADER=( ['I']="---" ['W']="!!!" ['E']="???" )
 
@@ -1106,7 +1110,7 @@ function callExtensions() { # extensionplugpoint rc
 		shift 1
 		local args=( "$@" )
 
-		if which $extensionFileName &>/dev/null; then
+		if hash $extensionFileName 2>/dev/null; then
 			logItem "Calling $extensionFileName"
 			$extensionFileName "${args[@]}"
 			local rc=$?
@@ -1125,7 +1129,7 @@ function callExtensions() { # extensionplugpoint rc
 
 			local extensionFileName="${MYNAME}_${extension}_$1.sh"
 
-			if which $extensionFileName &>/dev/null; then
+			if hash $extensionFileName 2>/dev/null; then
 				logItem "Calling $extensionFileName $2"
 				executeShellCommand ". $extensionFileName $2"
 				local rc=$?
@@ -1417,7 +1421,7 @@ function logCommand() { # command
 function logSystemServices() {
 	logEntry
 	if (( $SYSTEMSTATUS )); then
-		if ! which lsof &>/dev/null; then
+		if ! hash lsof 2>/dev/null; then
 				writeToConsole $MSG_LEVEL_MINIMAL $MSG_MISSING_INSTALLED_FILE "lsof" "lsof"
 			else
 				logCommand "service --status-all 2>&1"
@@ -1449,7 +1453,6 @@ function logOptions() {
 	logItem "Options: $INVOCATIONPARMS"
 	logItem "APPEND_LOG=$APPEND_LOG"
 	logItem "APPEND_LOG_OPTION=$APPEND_LOG_OPTION"
-	logItem "APPLY7412=$APPLY7412"
 	logItem "BACKUPPATH=$BACKUPPATH"
 	logItem "BACKUPTYPE=$BACKUPTYPE"
 	logItem "AFTER_STARTSERVICES=$AFTER_STARTSERVICES"
@@ -1558,7 +1561,7 @@ function initializeDefaultConfig() {
 	# Additional parameters for email program (optional)
 	DEFAULT_EMAIL_PARMS=""
 	# log level  (0 = none, 1 = debug)
-	DEFAULT_LOG_LEVEL=2
+	DEFAULT_LOG_LEVEL=1
 	# log output ( 0 = syslog, 1 = /var/log, 2 = backuppath, 3 = ./raspiBackup.log, <somefilename>)
 	DEFAULT_LOG_OUTPUT=2
 	# msg level (0 = minimal, 1 = detailed)
@@ -1636,8 +1639,6 @@ function initializeDefaultConfig() {
 	DEFAULT_UPDATE_UUIDS=0
 	# ignore partitions > 2 in normal mode
 	DEFAULT_IGNORE_ADDITIONAL_PARTITIONS=0
-	# apply 7412 backup cleanup - WARNING: will delete backups - only use if you know what you're doing
-	DEFAULT_APPLY7412=0
 	# notify in email and telegram when backup starts
 	DEFAULT_NOTIFY_START=0
 	# Telegram token
@@ -1661,7 +1662,6 @@ function initializeConfig() {
 	[[ -z "$APPEND_LOG" ]] && APPEND_LOG="$DEFAULT_APPEND_LOG"
 	# verifyIsOnOff "APPEND_LOG"
 	[[ -z "$APPEND_LOG_OPTION" ]] && APPEND_LOG_OPTION="$DEFAULT_APPEND_LOG_OPTION"
-	[[ -z "$APPLY7412" ]] && APPLY7412="$DEFAULT_APPLY7412"
 	[[ -z "$BACKUPPATH" ]] && BACKUPPATH="$DEFAULT_BACKUPPATH"
 	[[ -z "$BACKUPTYPE" ]] && BACKUPTYPE="$DEFAULT_BACKUPTYPE"
 	[[ -z "$AFTER_STARTSERVICES" ]] && AFTER_STARTSERVICES="$DEFAULT_AFTER_STARTSERVICES"
@@ -2325,7 +2325,7 @@ function getFsType() { # file or path
 
 function assertCommandAvailable() { # command package
 
-	if ! command -v $1 &> /dev/null; then
+	if ! hash $1 2>/dev/null; then
 		writeToConsole $MSG_LEVEL_MINIMAL $MSG_MISSING_INSTALLED_FILE "$1" "$2"
 		exitError $RC_MISSING_COMMANDS
 	fi
@@ -2751,7 +2751,7 @@ function sendTelegramm() { # subject
 
 	logEntry "$1"
 
-	if ! which jq &>/dev/null; then # suppress error message when jq is not installed
+	if ! hash jq 2>/dev/null; then # suppress error message when jq is not installed
 		writeToConsole $MSG_LEVEL_MINIMAL $MSG_MISSING_INSTALLED_FILE "jq" "jq"
 
 	elif [[ -n "$TELEGRAM_TOKEN" && rc != $RC_CTRLC ]] ; then
@@ -2781,23 +2781,6 @@ function sendEMail() { # content subject
 		local attach=""
 		local subject="$2"
 
-		if (( ! $MAIL_ON_ERROR_ONLY || ( $MAIL_ON_ERROR_ONLY && rc != 0 ) )); then
-
-			if (( $APPEND_LOG )); then
-				attach="$DEFAULT_APPEND_LOG_OPTION $LOG_FILE"
-				logItem "Appendlog $attach"
-			fi
-
-			IFS=" "
-			content="$NL$(<"$MSG_FILE")$NL$1$NL"
-			unset IFS
-
-			if [[ "$COLORING" =~ $COLORING_MAIL ]]; then
-				content="$(colorAnnotation $COLOR_TYPE_HTML "$content")"
-			fi
-
-		fi
-
 		local smiley=""
 		if (( $NOTIFY_UPDATE && $NEWS_AVAILABLE )); then
 			if (( $WARNING_MESSAGE_WRITTEN )); then
@@ -2826,6 +2809,19 @@ function sendEMail() { # content subject
 		if (( ! $MAIL_ON_ERROR_ONLY || ( $MAIL_ON_ERROR_ONLY && ( rc != 0 || ( $NOTIFY_UPDATE && $NEWS_AVAILABLE ) ) ) )); then
 
 			writeToConsole $MSG_LEVEL_DETAILED $MSG_SENDING_EMAIL
+
+			if (( $APPEND_LOG )); then
+				attach="$DEFAULT_APPEND_LOG_OPTION $LOG_FILE"
+				logItem "Appendlog $attach"
+			fi
+
+			IFS=" "
+			content="$NL$(<"$MSG_FILE")$NL$1$NL"
+			unset IFS
+
+			if [[ "$COLORING" =~ $COLORING_MAIL ]]; then
+				content="$(colorAnnotation $COLOR_TYPE_HTML "$content")"
+			fi
 
 			logItem "Sending eMail with program $EMAIL_PROGRAM and parms '$EMAIL_PARMS'"
 			logItem "Parm1:$1 Parm2:$subject"
@@ -2985,24 +2981,71 @@ function masqueradeSensitiveInfoInLog() {
 
 	local m
 
+	# receiver email
+
 	if [[ -n "$EMAIL" ]]; then
 		m="$(masquerade "$EMAIL")"
-		sed -i -E "s/$EMAIL/${m}/" $LOG_FILE
+		sed -i -E "s/$EMAIL/${m}/g" $LOG_FILE
 	fi
+
+	# email parms usually also contain eMails
 
 	if [[ -n "$EMAIL_PARMS" ]]; then
 		m="$(masquerade "$EMAIL_PARMS")"
 		sed -i -E "s/$EMAIL_PARMS/${m}/" $LOG_FILE # may contain passwords
 	fi
 
+	# some mount options
+
 	sed -i -E "s/username=[^,]+\,/username=${MASQUERADE_STRING},/" $LOG_FILE # used in cifs mount options
 	sed -i -E "s/domain=[^,]+\,/domain=${MASQUERADE_STRING},/" $LOG_FILE
 
+	# telegram token and chatid
+
 	if	m="$(masquerade $TELEGRAM_TOKEN)"; then
-		sed -i -E "s/${TELEGRAM_TOKEN}/${m}/" $LOG_FILE
+		sed -i -E "s/${TELEGRAM_TOKEN}/${m}/g" $LOG_FILE
 	fi
+
 	if m="$(masquerade $TELEGRAM_CHATID)"; then
-		sed -i -E "s/${TELEGRAM_CHATID}/${m}/" $LOG_FILE
+		sed -i -E "s/${TELEGRAM_CHATID}/${m}/g" $LOG_FILE
+	fi
+
+	# In home directories usually first names are used
+
+	sed -i -E "s/\/home\/([^\\])+\/(.)/\/home\/${MASQUERADE_STRING}\/\2/g" $LOG_FILE
+
+	# any non local IPs used somewhere (mounts et al)
+
+	masqueradeNonlocalIPs $LOG_FILE
+
+}
+
+function masqueradeNonlocalIPs() { # file
+
+	if hash perl 2>/dev/null; then
+
+		perl -pi.bak -ne '
+			my $IP_ADDRESS = qr /(([\d]{1,3}\.){3}[\d]{1,3})/;
+			my $line;
+
+			$line=$_;
+			while ($line =~ /($IP_ADDRESS)/g ) {
+				my $ip = $1;
+
+				if ( $1 !~ /^192\.167\./
+					&& $1 !~ /^127\./
+					&& $1 !~ /0\.0\.0\.0/
+					&& $1 !~ /255\.{1,3}(255)?/
+					&& $1 !~ /^169\./
+					&& $1 !~ /^10\./
+					&& $1 !~ /^172\.([1][6-9]|2[1-9]|3[0-1])/ ) {
+						my $privateIp = $ip;
+						$privateIp =~ s/\d+\.\d+/%%%.%%%/;
+						s/$ip/$privateIp/;
+				}
+			 }
+
+		' "$1" 2>/dev/null
 	fi
 }
 
@@ -3041,6 +3084,50 @@ function cleanup() { # trap
 	writeToConsole $MSG_LEVEL_MINIMAL $MSG_STOPPED "$HOSTNAME" "$MYSELF" "$VERSION" "$GIT_COMMIT_ONLY" "$(date)" "$rc"
 	logger -t $MYNAME "Stopped $VERSION ($GIT_COMMIT_ONLY). rc $rc"
 
+	if (( $rc != 0 )); then
+
+		if (( ! $MAIL_ON_ERROR_ONLY )); then
+			if (( $WARNING_MESSAGE_WRITTEN )); then
+				writeToConsole $MSG_LEVEL_MINIMAL $MSG_BACKUP_WARNING
+			fi
+		fi
+
+		if (( $rc != $RC_CTRLC )); then
+			writeToConsole $MSG_LEVEL_MINIMAL $MSG_BACKUP_FAILED
+			if (( $rc != $RC_EMAILPROG_ERROR )); then
+				msgTitle=$(getLocalizedMessage $MSG_TITLE_ERROR $HOSTNAME)
+				sendEMail "$msg" "$msgTitle"
+			fi
+
+			if [[ -n "$TELEGRAM_TOKEN" ]]; then
+				msg=$(getLocalizedMessage $MSG_TITLE_ERROR $HOSTNAME)
+				if [[ "$TELEGRAM_NOTIFICATIONS" =~ $TELEGRAM_NOTIFY_FAILURE ]]; then
+					sendTelegramm "<b><u> $msg </u></b>"
+				fi
+			fi
+		fi
+
+	else 	# success
+
+		writeToConsole $MSG_LEVEL_MINIMAL $MSG_BACKUP_OK
+
+		if [[ -n "$TELEGRAM_TOKEN"  ]]; then
+			msg=$(getLocalizedMessage $MSG_TITLE_OK $HOSTNAME)
+			if [[ "$TELEGRAM_NOTIFICATIONS" =~ $TELEGRAM_NOTIFY_SUCCESS ]]; then
+				sendTelegramm "$msg"
+			fi
+		fi
+		msg=$(getLocalizedMessage $MSG_TITLE_OK $HOSTNAME)
+		sendEMail "" "$msg"
+	fi
+
+	logItem "================================================================================================================================================================================="
+	logItem "================================================================================================================================================================================="
+	logItem "================================================================================================================================================================================="
+	logItem "===> Masquerading some sensitive information in the log file but there may be still some sensitive details not masqueraded. Please check carefully before publishing the log <==="
+	logItem "================================================================================================================================================================================="
+	logItem "================================================================================================================================================================================="
+	logItem "================================================================================================================================================================================="
 	exec >&3 2>&4 # free logfile
 	masqueradeSensitiveInfoInLog # and now masquerade sensitive details in log file
 
@@ -3232,42 +3319,6 @@ function cleanupBackup() { # trap
 			executeAfterStartServices "noexit"
 		fi
 
-		if [[ -z $EMAIL ]]; then
-			writeToConsole $MSG_LEVEL_MINIMAL $MSG_BACKUP_FAILED
-		fi
-
-		if [[ $rc != $RC_CTRLC && $rc != $RC_EMAILPROG_ERROR ]]; then
-			msg=$(getLocalizedMessage $MSG_BACKUP_FAILED)
-			msgTitle=$(getLocalizedMessage $MSG_TITLE_ERROR $HOSTNAME)
-			sendEMail "$msg" "$msgTitle"
-		fi
-
-		if [[ $rc != $RC_CTRLC && -n "$TELEGRAM_TOKEN"  ]]; then
-			msg=$(getLocalizedMessage $MSG_TITLE_ERROR $HOSTNAME)
-			if [[ "$TELEGRAM_NOTIFICATIONS" =~ $TELEGRAM_NOTIFY_FAILURE ]]; then
-				sendTelegramm "<b><u> $msg </u></b>"
-			fi
-		fi
-
-	else
-
-		if (( ! $MAIL_ON_ERROR_ONLY )); then
-			if (( $WARNING_MESSAGE_WRITTEN )); then
-				writeToConsole $MSG_LEVEL_MINIMAL $MSG_BACKUP_WARNING
-			else
-				writeToConsole $MSG_LEVEL_MINIMAL $MSG_BACKUP_OK
-			fi
-		fi
-
-		if [[ -n "$TELEGRAM_TOKEN"  ]]; then
-			msg=$(getLocalizedMessage $MSG_TITLE_OK $HOSTNAME)
-			if [[ "$TELEGRAM_NOTIFICATIONS" =~ $TELEGRAM_NOTIFY_SUCCESS ]]; then
-				sendTelegramm "$msg"
-			fi
-		fi
-
-		msg=$(getLocalizedMessage $MSG_TITLE_OK $HOSTNAME)
-		sendEMail "" "$msg"
 	fi
 
 	cleanupBackupDirectory
@@ -4768,12 +4819,12 @@ function commonChecks() {
 			writeToConsole $MSG_LEVEL_MINIMAL $MSG_EMAIL_PROG_NOT_SUPPORTED "$EMAIL_PROGRAM" "$SUPPORTED_MAIL_PROGRAMS"
 			exitError $RC_EMAILPROG_ERROR
 		fi
-		if [[ ! $(which $EMAIL_PROGRAM) && ( $EMAIL_PROGRAM != $EMAIL_EXTENSION_PROGRAM ) ]]; then
+		if [[ ! $(hash $EMAIL_PROGRAM 2>/dev/null) && ( $EMAIL_PROGRAM != $EMAIL_EXTENSION_PROGRAM ) ]]; then
 			writeToConsole $MSG_LEVEL_MINIMAL $MSG_MAILPROGRAM_NOT_INSTALLED $EMAIL_PROGRAM
 			exitError $RC_EMAILPROG_ERROR
 		fi
 		if [[ (( "$MAIL_PROGRAM" == $EMAIL_SSMTP_PROGRAM || "$MAIL_PROGRAM" == $EMAIL_MSMTP_PROGRAM )) && (( $APPEND_LOG )) ]]; then
-			if ! which mpack &>/dev/null; then
+			if ! hash mpack 2>/dev/null; then
 				writeToConsole $MSG_LEVEL_MINIMAL $MSG_MPACK_NOT_INSTALLED
 				APPEND_LOG=0
 			fi
@@ -4784,6 +4835,10 @@ function commonChecks() {
 	if [[ -n "$COLORING" && -n "$co" ]]; then
 			writeToConsole $MSG_LEVEL_MINIMAL $MSG_INVALID_COLORING_OPTION "$co"
 			exitError $RC_PARAMETER_ERROR
+	fi
+
+	if (( $PARTITIONBASED_BACKUP)); then
+		writeToConsole $MSG_LEVEL_MINIMAL $MSG_PARTITION_MODE_NO_LONGER_SUPPORTED
 	fi
 
 	logExit
@@ -5145,7 +5200,7 @@ function doitBackup() {
 	fi
 
 	if [[ -n "$TELEGRAM_CHATID" && -n "$TELEGRAM_TOKEN" ]]; then
-		if ! which jq &>/dev/null; then
+		if ! hash jq 2>/dev/null; then
 			writeToConsole $MSG_LEVEL_MINIMAL $MSG_MISSING_INSTALLED_FILE "jq" "jq"
 			exitError $RC_MISSING_COMMANDS
 		fi
@@ -5157,7 +5212,7 @@ function doitBackup() {
 	fi
 
 	if [[ "$BACKUPTYPE" == "$BACKUPTYPE_RSYNC" ]]; then
-		if ! which rsync &>/dev/null; then
+		if ! hash rsync 2>/dev/null; then
 			writeToConsole $MSG_LEVEL_MINIMAL $MSG_MISSING_INSTALLED_FILE "rsync" "rsync"
 			exitError $RC_MISSING_COMMANDS
 		fi
@@ -5202,7 +5257,7 @@ function doitBackup() {
 	fi
 
 	if (( $PROGRESS )) && [[ "$BACKUPTYPE" == "$BACKUPTYPE_DD" || "$BACKUPTYPE" == "$BACKUPTYPE_DDZ" ]]; then
-		if ! which pv &>/dev/null; then
+		if ! hash pv 2>/dev/null; then
 			writeToConsole $MSG_LEVEL_MINIMAL $MSG_MISSING_INSTALLED_FILE "pv" "pv"
 			exitError $RC_MISSING_COMMANDS
 		fi
@@ -5230,6 +5285,11 @@ function doitBackup() {
 		fi
 	fi
 
+	if (( $SYSTEMSTATUS )) && ! hash 2>/dev/null; then
+		 writeToConsole $MSG_LEVEL_MINIMAL $MSG_MISSING_INSTALLED_FILE "lsof" "lsof"
+		 exitError $RC_MISSING_COMMANDS
+	fi
+
 	# just inform about enabled config options
 
 	if  [[ $BACKUPTYPE != $BACKUPTYPE_DD && $BACKUPTYPE != $BACKUPTYPE_DDZ ]]; then
@@ -5246,7 +5306,7 @@ function doitBackup() {
 
 	writeToConsole $MSG_LEVEL_MINIMAL $MSG_USING_BACKUPPATH "$BACKUPPATH"
 
-	if (( $APPLY7412 && $SMART_RECYCLE )); then # just apply backup strategy to test smart recycle
+	if (( $SMART_RECYCLE_DRYRUN && $SMART_RECYCLE )); then # just apply backup strategy to test smart recycle
 		writeToConsole $MSG_LEVEL_MINIMAL $MSG_APPLYING_BACKUP_STRATEGY_ONLY "$BACKUPPATH/$(hostname)"
 		applyBackupStrategy
 		rc=0
@@ -6003,7 +6063,7 @@ function doitRestore() {
 		exitError $RC_PARAMETER_ERROR
 	fi
 
-	if (( $PROGRESS )) && [[ "$BACKUPTYPE" == "$BACKUPTYPE_DD" || "$BACKUPTYPE" == "$BACKUPTYPE_DDZ" ]] && [[ $(which pv &>/dev/null) ]]; then
+	if (( $PROGRESS )) && [[ "$BACKUPTYPE" == "$BACKUPTYPE_DD" || "$BACKUPTYPE" == "$BACKUPTYPE_DDZ" ]] && [[ $(hash pv 2>/dev/null) ]]; then
 		writeToConsole $MSG_LEVEL_MINIMAL $MSG_MISSING_INSTALLED_FILE "pv" "pv"
 		exitError $RC_PARAMETER_ERROR
 	fi
@@ -6032,7 +6092,7 @@ function doitRestore() {
 	logItem "Date: $DATE"
 
 	if [[ "$BACKUPTYPE" == "$BACKUPTYPE_RSYNC" ]]; then
-		if ! which rsync &>/dev/null; then
+		if ! hash rsync 2>/dev/null; then
 			writeToConsole $MSG_LEVEL_MINIMAL $MSG_MISSING_INSTALLED_FILE "rsync" "rsync"
 			exitError $RC_MISSING_COMMANDS
 		fi
@@ -6045,7 +6105,7 @@ function doitRestore() {
 	fi
 
 	if (( $PARTITIONBASED_BACKUP )); then
-		if ! which dosfslabel &>/dev/null; then
+		if ! hash dosfslabel 2>/dev/null; then
 			writeToConsole $MSG_LEVEL_MINIMAL $MSG_MISSING_INSTALLED_FILE "dosfslabel" "dosfstools"
 			exitError $RC_MISSING_COMMANDS
 		fi
@@ -6466,7 +6526,7 @@ function check4RequiredCommands() {
 	local missing_commands missing_packages
 
 	for cmd in "${!REQUIRED_COMMANDS[@]}"; do
-		if ! command -v $cmd > /dev/null; then
+		if ! hash $cmd 2>/dev/null; then
 			missing_commands="$cmd $missing_commands "
 			missing_packages="${REQUIRED_COMMANDS[$cmd]} $missing_packages "
 		fi
@@ -6549,7 +6609,6 @@ function usageEN() {
 	echo "-k {backupsToKeep} (default: $DEFAULT_KEEPBACKUPS)"
 	[ -z "$DEFAULT_STARTSERVICES" ] && DEFAULT_STARTSERVICES="no"
 	echo "-o \"{commands to execute before Backup}\" (default: $DEFAULT_STOPSERVICES)"
-	echo "-P use dedicated partitionbackup mode (default: ${NO_YES[$DEFAULT_PARTITIONBASED_BACKUP]})"
 	echo "-t {backupType} ($ALLOWED_TYPES) (default: $DEFAULT_BACKUPTYPE)"
 	echo "-T \"{List of partitions to save}\" (Partition numbers, e.g. \"1 2 3\"). Only valid with parameter -P (default: ${DEFAULT_PARTITIONS_TO_BACKUP})"
 	echo ""
@@ -6601,7 +6660,6 @@ function usageDE() {
 	echo "-k {Anzahl Backups} (Standard: $DEFAULT_KEEPBACKUPS)"
 	[ -z "$DEFAULT_STARTSERVICES" ] && DEFAULT_STARTSERVICES="keine"
 	echo "-o \"{Befehle die vor dem Backup ausgeführt werden}\" (Standard: $DEFAULT_STOPSERVICES)"
-	echo "-P Speziellen Partitionsbackupmodus benutzen (Standard: ${NO_YES[$DEFAULT_PARTITIONBASED_BACKUP]})"
 	echo "-t {Backuptyp} ($ALLOWED_TYPES) (Standard: $DEFAULT_BACKUPTYPE)"
 	echo "-T \"Liste der Partitionen die zu Sichern sind}\" (Partitionsnummern, z.B. \"1 2 3\"). Nur gültig zusammen mit Parameter -P (Standard: ${DEFAULT_PARTITIONS_TO_BACKUP})"
 	echo ""
@@ -6737,10 +6795,6 @@ while (( "$#" )); do
 
 	-9|-9[-+])
 	  FAKE_BACKUPS=$(getEnableDisableOption "$1"); shift 1
-	  ;;
-
-	-7412|-7412[-+]) # flag to apply smart recycle code for regression test
-	  APPLY7412=$(getEnableDisableOption "$1"); shift 1
 	  ;;
 
 	-a)
@@ -7008,10 +7062,6 @@ while (( "$#" )); do
 
 	--systemstatus|--systemstatus[+-])
 	  SYSTEMSTATUS=$(getEnableDisableOption "$1"); shift 1
-	  if ! which lsof &>/dev/null; then
-		 writeToConsole $MSG_LEVEL_MINIMAL $MSG_MISSING_INSTALLED_FILE "lsof" "lsof"
-		 exitError $RC_MISSING_COMMANDS
-	  fi
 	  ;;
 
 	-t)
@@ -7231,8 +7281,8 @@ setupEnvironment
 writeToConsole $MSG_LEVEL_MINIMAL $MSG_STARTED "$HOSTNAME" "$MYSELF" "$VERSION" "$GIT_COMMIT_ONLY" "$(date)"
 logger -t $MYSELF "Started $VERSION ($GIT_COMMIT_ONLY)"
 if (( "$NOTIFY_START" && ( ! $INTERACTIVE || $FAKE ) )) ; then
+	msg="$(getLocalizedMessage $MSG_TITLE_STARTED "$HOSTNAME")"
 	if [[ -n "$EMAIL"  ]]; then
-		msg="$(getLocalizedMessage $MSG_TITLE_STARTED "$HOSTNAME")"
 		sendEMail "" "$msg"
 	fi
 	if [[ -n "$TELEGRAM_TOKEN"  ]]; then

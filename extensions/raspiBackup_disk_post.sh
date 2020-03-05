@@ -27,8 +27,8 @@
 #
 #######################################################################################################################
 
-GIT_DATE="$Date: 2020-01-13 19:46:38 +0100$"
-GIT_COMMIT="$Sha1: aa2d7b5$"
+GIT_DATE="$Date: 2020-02-24 12:31:14 +0100$"
+GIT_COMMIT="$Sha1: d2acd2d$"
 
 # set any variables and prefix all names with ext_ and some unique prefix to use a different namespace than the script
 ext_diskUsage_post=( $(getDiskUsage) )

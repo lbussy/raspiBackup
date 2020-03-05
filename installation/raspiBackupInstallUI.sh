@@ -8,7 +8,7 @@
 #
 #######################################################################################################################
 #
-#    Copyright (c) 2015-2019 framp at linux-tips-and-tricks dot de
+#    Copyright (c) 2015-2020 framp at linux-tips-and-tricks dot de
 #
 #    This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -27,7 +27,7 @@
 
 MYSELF=${0##*/}
 MYNAME=${MYSELF%.*}
-VERSION="0.4.3" 	# -beta, -hotfix or -dev suffixes possible
+VERSION="0.4.3.1" 	# -beta, -hotfix or -dev suffixes possible
 
 if [[ (( ${BASH_VERSINFO[0]} < 4 )) || ( (( ${BASH_VERSINFO[0]} == 4 )) && (( ${BASH_VERSINFO[1]} < 3 )) ) ]]; then
 	echo "bash version 0.4.3 or beyond is required by $MYSELF" # nameref feature, declare -n var=$v
@@ -39,11 +39,11 @@ MYHOMEURL="https://$MYHOMEDOMAIN"
 
 MYDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-GIT_DATE="$Date: 2020-01-13 19:46:38 +0100$"
+GIT_DATE="$Date: 2020-03-05 23:03:09 +0100$"
 GIT_DATE_ONLY=${GIT_DATE/: /}
 GIT_DATE_ONLY=$(cut -f 2 -d ' ' <<<$GIT_DATE)
 GIT_TIME_ONLY=$(cut -f 3 -d ' ' <<<$GIT_DATE)
-GIT_COMMIT="$Sha1: aa2d7b5$"
+GIT_COMMIT="$Sha1: 8d8948a$"
 GIT_COMMIT_ONLY=$(cut -f 2 -d ' ' <<<$GIT_COMMIT | sed 's/\$//')
 
 GIT_CODEVERSION="$MYSELF $VERSION, $GIT_DATE_ONLY/$GIT_TIME_ONLY - $GIT_COMMIT_ONLY"
@@ -75,7 +75,7 @@ EOF
 PROPERTY_URL="$MYHOMEURL/downloads/raspibackup0613-properties/download"
 BETA_DOWNLOAD_URL="$MYHOMEURL/downloads/raspibackup-beta-sh/download"
 LATEST_TEMP_PROPERTY_FILE="/tmp/$MYNAME.properties"
-INSTALLER_DOWNLOAD_URL="$MYHOMEURL/downloads/raspiBackupInstall/download"
+INSTALLER_DOWNLOAD_URL="$MYHOMEURL/downloads/raspibackupinstallui-sh/download"
 STABLE_CODE_URL="$FILE_TO_INSTALL"
 
 DOWNLOAD_TIMEOUT=60 # seconds
@@ -110,7 +110,6 @@ CONFIG_MSG_LEVEL="0"
 CONFIG_BACKUPTYPE="rsync"
 CONFIG_KEEPBACKUPS="3"
 CONFIG_BACKUPPATH="/backup"
-CONFIG_PARTITIONBASED_BACKUP="0"
 CONFIG_ZIP_BACKUP="0"
 CONFIG_CRON_HOUR="5"
 CONFIG_CRON_MINUTE="0"
@@ -358,13 +357,6 @@ MSG_EN[$DESCRIPTION_BACKUPPATH]="${NL}On the backup path a partition has to be b
 This can be a local partition or a mounted remote partition."
 MSG_DE[$DESCRIPTION_BACKUPPATH]="${NL}Am Backuppfad muss eine Partition gemounted sein auf welcher $FILE_TO_INSTALL die Backups ablegt. \
 Das kann eine lokale Partition oder eine remote gemountete Partition."
-DESCRIPTION_BACKUPMODE=$((SCNT++))
-MSG_EN[$DESCRIPTION_BACKUPMODE]="${NL}Preferred mode is the normal backup mode. If you need to save more than two partitions with tar or rsync use the partition oriented mode. \
-It's required for NOOBS images. Use normal mode and dd backup if you need a dd backup. Actually NOOBS is not suggested to use. See${NL}https://www.linux-tips-and-tricks.de/en/noobs-support for details. \
-Default is to backup all SD card partitions but it's possible to define the partitions to backup."
-MSG_DE[$DESCRIPTION_BACKUPMODE]="${NL}Empfohlener Modus ist der normale Backup Modus. Wenn allerdings mehr als zwei Partitionen gesichert werden sollen mit tar oder rsync ist der paritionsorientiert Modus zu wählen. \
-NOOBS Images benötigen diesen Modus. Den normalen Modus muss man aber wählen wenn man ein dd Backup haben möchte. NOOBS ist allerdings nicht zu empfehlen. Siehe dazu${NL}https://www.linux-tips-and-tricks.de/de/noobs-unterstuetzung. \
-Standard ist alle Partitionen zu sichern aber es kann auch genau angegeben werden welche Partitionen gesichert werden sollen."
 DESCRIPTION_BACKUPTYPE=$((SCNT++))
 MSG_EN[$DESCRIPTION_BACKUPTYPE]="${NL}rsync is the suggested backuptype because when using hardlinks from EXT3/4 filesystem it's fast because only changed or new files will be saved. \
 tar should be used if the backup filesystem is no EXT3/4, e.g a remote mounted samba share. Don't used a FAT32 filesystem because the maximum filesize is 4GB. \
@@ -532,33 +524,24 @@ MENU_DE[$MENU_CONFIG_BACKUPS]='"C3" "Anzahl vorzuhaltender Backups"'
 MENU_CONFIG_TYPE=$((MCNT++))
 MENU_EN[$MENU_CONFIG_TYPE]='"C4" "Backup type"'
 MENU_DE[$MENU_CONFIG_TYPE]='"C4" "Backup Typ"'
-MENU_CONFIG_MODE=$((MCNT++))
-MENU_EN[$MENU_CONFIG_MODE]='"C5" "Backup mode"'
-MENU_DE[$MENU_CONFIG_MODE]='"C5" "Backup Modus"'
 MENU_CONFIG_SERVICES=$((MCNT++))
-MENU_EN[$MENU_CONFIG_SERVICES]='"C6" "Services to stop and start"'
-MENU_DE[$MENU_CONFIG_SERVICES]='"C6" "Zu stoppende und startende Services"'
+MENU_EN[$MENU_CONFIG_SERVICES]='"C5" "Services to stop and start"'
+MENU_DE[$MENU_CONFIG_SERVICES]='"C5" "Zu stoppende und startende Services"'
 MENU_CONFIG_MESSAGE=$((MCNT++))
-MENU_EN[$MENU_CONFIG_MESSAGE]='"C7" "Message verbosity"'
-MENU_DE[$MENU_CONFIG_MESSAGE]='"C7" "Meldungsgenauigkeit"'
+MENU_EN[$MENU_CONFIG_MESSAGE]='"C6" "Message verbosity"'
+MENU_DE[$MENU_CONFIG_MESSAGE]='"C6" "Meldungsgenauigkeit"'
 MENU_CONFIG_EMAIL=$((MCNT++))
-MENU_EN[$MENU_CONFIG_EMAIL]='"C8" "eMail notification"'
-MENU_DE[$MENU_CONFIG_EMAIL]='"C8" "eMail Benachrichtigung"'
+MENU_EN[$MENU_CONFIG_EMAIL]='"C7" "eMail notification"'
+MENU_DE[$MENU_CONFIG_EMAIL]='"C7" "eMail Benachrichtigung"'
 MENU_CONFIG_CRON=$((MCNT++))
-MENU_EN[$MENU_CONFIG_CRON]='"C9" "Regular backup"'
-MENU_DE[$MENU_CONFIG_CRON]='"C9" "Regelmäßiges Backup"'
+MENU_EN[$MENU_CONFIG_CRON]='"C8" "Regular backup"'
+MENU_DE[$MENU_CONFIG_CRON]='"C8" "Regelmäßiges Backup"'
 MENU_CONFIG_ZIP=$((MCNT++))
-MENU_EN[$MENU_CONFIG_ZIP]='"C10" "Compression"'
-MENU_DE[$MENU_CONFIG_ZIP]='"C10" "Komprimierung"'
+MENU_EN[$MENU_CONFIG_ZIP]='"C9" "Compression"'
+MENU_DE[$MENU_CONFIG_ZIP]='"C9" "Komprimierung"'
 MENU_CONFIG_ZIP_NA=$((MCNT++))
 MENU_EN[$MENU_CONFIG_ZIP_NA]='" " " "'
 MENU_DE[$MENU_CONFIG_ZIP_NA]='" " " "'
-MENU_CONFIG_MODE_NORMAL=$((MCNT++))
-MENU_EN[$MENU_CONFIG_MODE_NORMAL]='"Standard" "Backup the two standard partitions"'
-MENU_DE[$MENU_CONFIG_MODE_NORMAL]='"Standard" "Sichere die zwei Standardpartitionen "'
-MENU_CONFIG_MODE_PARTITION=$((MCNT++))
-MENU_EN[$MENU_CONFIG_MODE_PARTITION]='"Extended" "Backup more than two partitions"'
-MENU_DE[$MENU_CONFIG_MODE_PARTITION]='"Erweitert" "Sichere mehr als zwei Partitionen"'
 MENU_INSTALL_INSTALL=$((MCNT++))
 MENU_EN[$MENU_INSTALL_INSTALL]='"I1" "Install $RASPIBACKUP_NAME using a default configuration"'
 MENU_DE[$MENU_INSTALL_INSTALL]='"I1" "Installiere $RASPIBACKUP_NAME mit einer Standardkonfiguration"'
@@ -1219,7 +1202,6 @@ function config_update_execute() {
 	writeToConsole $MSG_UPDATING_CONFIG "$CONFIG_ABS_FILE"
 
 	logItem "Language: $CONFIG_LANGUAGE"
-	logItem "Mode: $CONFIG_PARTITIONBASED_BACKUP"
 	logItem "Type: $CONFIG_BACKUPTYPE"
 	logItem "Zip: $CONFIG_ZIP_BACKUP"
 	logItem "Keep: $CONFIG_KEEPBACKUPS"
@@ -1231,7 +1213,6 @@ function config_update_execute() {
 	logItem "mailProgram: $CONFIG_MAIL_PROGRAM"
 
 	sed -i "s/^DEFAULT_LANGUAGE=.*\$/DEFAULT_LANGUAGE=\"$CONFIG_LANGUAGE\"/" "$CONFIG_ABS_FILE"
-	sed -i "s/^DEFAULT_PARTITIONBASED_BACKUP=.*\$/DEFAULT_PARTITIONBASED_BACKUP=\"$CONFIG_PARTITIONBASED_BACKUP\"/" "$CONFIG_ABS_FILE"
 	sed -i "s/^DEFAULT_BACKUPTYPE=.*\$/DEFAULT_BACKUPTYPE=\"$CONFIG_BACKUPTYPE\"/" "$CONFIG_ABS_FILE"
 	sed -i "s/^DEFAULT_ZIP_BACKUP=.*\$/DEFAULT_ZIP_BACKUP=\"$CONFIG_ZIP_BACKUP\"/" "$CONFIG_ABS_FILE"
 	sed -i "s/^DEFAULT_KEEPBACKUPS=.*\$/DEFAULT_KEEPBACKUPS=\"$CONFIG_KEEPBACKUPS\"/" "$CONFIG_ABS_FILE"
@@ -1614,7 +1595,6 @@ function config_menu() {
 		getMenuText $MENU_CONFIG_BACKUPPATH m2
 		getMenuText $MENU_CONFIG_BACKUPS m3
 		getMenuText $MENU_CONFIG_TYPE m4
-		getMenuText $MENU_CONFIG_MODE m5
 		getMenuText $MENU_CONFIG_SERVICES m6
 		getMenuText $MENU_CONFIG_MESSAGE m7
 		getMenuText $MENU_CONFIG_EMAIL m8
@@ -1635,7 +1615,6 @@ function config_menu() {
 		local s2="${m2[0]}"
 		local s3="${m3[0]}"
 		local s4="${m4[0]}"
-		local s5="${m5[0]}"
 		local s6="${m6[0]}"
 		local s7="${m7[0]}"
 		local s8="${m8[0]}"
@@ -1648,7 +1627,6 @@ function config_menu() {
 			"${m2[@]}" \
 			"${m3[@]}" \
 			"${m4[@]}" \
-			"${m5[@]}" \
 			"${m6[@]}" \
 			"${m7[@]}" \
 			"${m8[@]}" \
@@ -1683,7 +1661,6 @@ function config_menu() {
 				$s2) config_backuppath_do; CONFIG_UPDATED=$(( CONFIG_UPDATED|$? )) ;;
 				$s3) config_keep_do; CONFIG_UPDATED=$(( CONFIG_UPDATED|$? )) ;;
 				$s4) config_backuptype_do; CONFIG_UPDATED=$(( CONFIG_UPDATED|$? )) ;;
-				$s5) config_backupmode_do; CONFIG_UPDATED=$(( CONFIG_UPDATED|$? )) ;;
 				$s6) config_services_do; CONFIG_UPDATED=$(( CONFIG_UPDATED|$? )) ;;
 				$s7) config_message_detail_do; CONFIG_UPDATED=$(( CONFIG_UPDATED|$? )) ;;
 				$s8) config_email_do; CONFIG_UPDATED=$(( CONFIG_UPDATED|$? )) ;;
@@ -1934,15 +1911,11 @@ function config_backuptype_do() {
 
 	getMenuText $MENU_CONFIG_TYPE_RSYNC m1
 	getMenuText $MENU_CONFIG_TYPE_TAR m2
+	getMenuText $MENU_CONFIG_TYPE_DD m3
+
 	local s1="${m1[0]}"
 	local s2="${m2[0]}"
-	if [[ $CONFIG_PARTITIONBASED_BACKUP == "1" ]]; then
-		getMenuText $MENU_CONFIG_TYPE_DD_NA m3
-		local s3=" "
-	else
-		getMenuText $MENU_CONFIG_TYPE_DD m3
-		local s3="${m3[0]}"
-	fi
+	local s3="${m3[0]}"
 
 	local o1="$(getMessageText $BUTTON_OK)"
 	local c1="$(getMessageText $BUTTON_CANCEL)"
@@ -2541,6 +2514,7 @@ function update_menu() {
 				$s2) update_installer_do ;;
 				*) whiptail --msgbox "Programm error: unrecognized option $FUN" $ROWS_MENU $WINDOW_COLS 1 ;;
 			esac || whiptail --msgbox "There was an error running option $FUN" $ROWS_MENU $WINDOW_COLS 1
+			parseCurrentVersions
 		fi
 	done
 	logExit
@@ -2680,55 +2654,6 @@ function cron_activate_do() {
 
 	return 0
 
-}
-
-function config_backupmode_do() {
-
-	local normal_mode=off
-	local partition_mode=off
-	local old="$CONFIG_PARTITIONBASED_BACKUP"
-
-	logEntry "$old"
-
-	case "$CONFIG_PARTITIONBASED_BACKUP" in
-		0) normal_mode=on ;;
-		1) partition_mode=on ;;
-		*) whiptail --msgbox "Programm error, unrecognized backup mode $CONFIG_PARTITIONBASED_BACKUP" $ROWS_MENU $WINDOW_COLS 2
-			logExit
-			return 1
-			;;
-	esac
-
-	getMenuText $MENU_CONFIG_MODE_NORMAL m1
-	getMenuText $MENU_CONFIG_MODE_PARTITION m2
-	local s1="${m1[0]}"
-	local s2="${m2[0]}"
-
-	getMenuText $MENU_CONFIG_MODE tt
-	local o1="$(getMessageText $BUTTON_OK)"
-	local c1="$(getMessageText $BUTTON_CANCEL)"
-	local d="$(getMessageText $DESCRIPTION_BACKUPMODE)"
-
-	ANSWER=$(whiptail --notags --radiolist "$d" --title "${tt[1]}" --ok-button "$o1" --cancel-button "$c1" $ROWS_MENU $WINDOW_COLS 2 \
-		"${m1[@]}" $normal_mode \
-		"${m2[@]}" $partition_mode \
-		3>&1 1>&2 2>&3)
-	if [ $? -eq 0 ]; then
-		logItem "Answer: $ANSWER"
-		case "$ANSWER" in
-		$s1) CONFIG_PARTITIONBASED_BACKUP="0";;
-		$s2) CONFIG_PARTITIONBASED_BACKUP="1" ;;
-		*) whiptail --msgbox "Programm error, unrecognized backup mode $ANSWER" $ROWS_MENU $WINDOW_COLS 2
-			logExit
-			return 1
-			;;
-		esac
-	fi
-
-	logExit "$CONFIG_PARTITIONBASED_BACKUP"
-
-	[[ "$old" == "$CONFIG_PARTITIONBASED_BACKUP" ]]
-	return
 }
 
 function config_message_detail_do() {
