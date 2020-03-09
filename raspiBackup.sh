@@ -37,6 +37,9 @@ fi
 VERSION="0.6.5-beta"	# -beta, -hotfix or -dev suffixes possible
 VERSION_CONFIG="0.1.3"	# required config version
 
+VERSION_VARNAME="VERSION"				# has to match above var names
+VERSION_CONFIG_VARNAME="VERSION_CONFIG"	# same here
+
 # add pathes if not already set (usually not set in crontab)
 
 DEFAULT_PATHES="/usr/local/sbin /usr/local/bin /usr/sbin /usr/bin /sbin /bin"
@@ -61,11 +64,11 @@ IS_HOTFIX=$((! $? ))
 MYSELF=${0##*/}
 MYNAME=${MYSELF%.*}
 
-GIT_DATE="$Date: 2020-03-04 23:54:34 +0100$"
+GIT_DATE="$Date: 2020-03-09 16:36:45 +0100$"
 GIT_DATE_ONLY=${GIT_DATE/: /}
 GIT_DATE_ONLY=$(cut -f 2 -d ' ' <<< $GIT_DATE)
 GIT_TIME_ONLY=$(cut -f 3 -d ' ' <<< $GIT_DATE)
-GIT_COMMIT="$Sha1: 1170419$"
+GIT_COMMIT="$Sha1: 528cf66$"
 GIT_COMMIT_ONLY=$(cut -f 2 -d ' ' <<< $GIT_COMMIT | sed 's/\$//')
 
 GIT_CODEVERSION="$MYSELF $VERSION, $GIT_DATE_ONLY/$GIT_TIME_ONLY - $GIT_COMMIT_ONLY"
@@ -1110,7 +1113,7 @@ function callExtensions() { # extensionplugpoint rc
 		shift 1
 		local args=( "$@" )
 
-		if hash $extensionFileName 2>/dev/null; then
+		if which $extensionFileName &>/dev/null; then
 			logItem "Calling $extensionFileName"
 			$extensionFileName "${args[@]}"
 			local rc=$?
@@ -1129,7 +1132,7 @@ function callExtensions() { # extensionplugpoint rc
 
 			local extensionFileName="${MYNAME}_${extension}_$1.sh"
 
-			if hash $extensionFileName 2>/dev/null; then
+			if which $extensionFileName &>/dev/null; then
 				logItem "Calling $extensionFileName $2"
 				executeShellCommand ". $extensionFileName $2"
 				local rc=$?
@@ -1421,7 +1424,7 @@ function logCommand() { # command
 function logSystemServices() {
 	logEntry
 	if (( $SYSTEMSTATUS )); then
-		if ! hash lsof 2>/dev/null; then
+		if ! which lsof &>/dev/null; then
 				writeToConsole $MSG_LEVEL_MINIMAL $MSG_MISSING_INSTALLED_FILE "lsof" "lsof"
 			else
 				logCommand "service --status-all 2>&1"
@@ -2323,15 +2326,6 @@ function getFsType() { # file or path
 
 }
 
-function assertCommandAvailable() { # command package
-
-	if ! hash $1 2>/dev/null; then
-		writeToConsole $MSG_LEVEL_MINIMAL $MSG_MISSING_INSTALLED_FILE "$1" "$2"
-		exitError $RC_MISSING_COMMANDS
-	fi
-
-}
-
 # check if directory is located on a mounted device
 
 function isPathMounted() {
@@ -2374,7 +2368,7 @@ function readConfigParameters() {
 		. "$ETC_CONFIG_FILE"
 		set +e
 		ETC_CONFIG_FILE_INCLUDED=1
-		ETC_CONFIG_FILE_VERSION="$(extractVersionFromFile "$ETC_CONFIG_FILE")"
+		ETC_CONFIG_FILE_VERSION="$(extractVersionFromFile "$ETC_CONFIG_FILE" "$VERSION_CONFIG_VARNAME" )"
 #		if [[ "$ETC_CONFIG_FILE_VERSION" != "$VERSION_CONFIG" ]]; then
 #			writeToConsole $MSG_LEVEL_MINIMAL $MSG_CONFIG_VERSION_DOES_NOT_MATCH "$ETC_CONFIG_FILE_VERSION" "$ETC_CONFIG_FILE" "$VERSION_CONFIG"
 #		fi
@@ -2394,7 +2388,7 @@ function readConfigParameters() {
 		. "$HOME_CONFIG_FILE"
 		set +e
 		HOME_CONFIG_FILE_INCLUDED=1
-		HOME_CONFIG_FILE_VERSION="$(extractVersionFromFile "$HOME_CONFIG_FILE")"
+		HOME_CONFIG_FILE_VERSION="$(extractVersionFromFile "$HOME_CONFIG_FILE" "$VERSION_CONFIG_VARNAME" )"
 #		if [[ -n "$HOME_CONFIG_FILE_VERSION" && "$HOME_CONFIG_FILE_VERSION" != "$VERSION_CONFIG" ]]; then
 #			writeToConsole $MSG_LEVEL_MINIMAL $MSG_CONFIG_VERSION_DOES_NOT_MATCH "$HOME_CONFIG_FILE_VERSION" "$HOME_CONFIG_FILE" "$VERSION_CONFIG"
 #		fi
@@ -2409,7 +2403,7 @@ function readConfigParameters() {
 			. "$CURRENTDIR_CONFIG_FILE"
 			set +e
 			CURRENTDIR_CONFIG_FILE_INCLUDED=1
-			CURRENTDIR_CONFIG_FILE_VERSION="$(extractVersionFromFile "$CURRENTDIR_CONFIG_FILE")"
+			CURRENTDIR_CONFIG_FILE_VERSION="$(extractVersionFromFile "$CURRENTDIR_CONFIG_FILE" "$VERSION_CONFIG_VARNAME" )"
 #			if [[ -n "$CURRENTDIR_CONFIG_FILE_VERSION" && "$CURRENTDIR_CONFIG_FILE_VERSION" != "$VERSION_CONFIG" ]]; then
 #				writeToConsole $MSG_LEVEL_MINIMAL $MSG_CONFIG_VERSION_DOES_NOT_MATCH "$CURRENTDIR_CONFIG_FILE_VERSION" "$CURRENTDIR_CONFIG_FILE" "$VERSION_CONFIG"
 #			fi
@@ -2424,7 +2418,8 @@ function setupEnvironment() {
 	logEntry
 
 	local PREVIOUS_LOG_FILE="$LOG_FILE"
-	local PREVIOUS_MSG_FILE="$MSG_FILE"
+
+	logItem "Previous logfile: $LOG_FILE"
 
 	if (( ! $RESTORE )); then
 		ZIP_BACKUP_TYPE_INVALID=0		# logging not enabled right now, invalid backuptype will be handled later
@@ -2469,8 +2464,6 @@ function setupEnvironment() {
 			rm -f "$BACKUPPATH/$MYNAME.tmp" &>/dev/null
 		fi
 
-		logItem "Current logfiles: L: $LOG_FILE M: $MSG_FILE"
-
 		if (( $FAKE )) && [[ "$LOG_OUTPUT" =~ $LOG_OUTPUT_IS_NO_USERDEFINEDFILE_REGEX ]]; then
 			LOG_OUTPUT=$LOG_OUTPUT_HOME
 		fi
@@ -2491,7 +2484,7 @@ function setupEnvironment() {
 			LOG_FILE="$LOG_BASE/$HOSTNAME.log"
 			MSG_FILE="$LOG_BASE/$HOSTNAME.msg"
 			echo "--- $(date)" >> $LOG_FILE # separate new log from previous logs
-			echo "--- $(date)" >> $MSG_FILE
+			rm -f $MSG_FILE &>/dev/null 
 			;;
 		$LOG_OUTPUT_HOME)
 			LOG_FILE="$CURRENT_DIR/$LOG_FILE_NAME"
@@ -2506,6 +2499,7 @@ function setupEnvironment() {
 		$LOG_OUTPUT_BACKUPLOC)
 			LOG_FILE="$BACKUPTARGET_DIR/$LOG_FILE_NAME"
 			MSG_FILE="$BACKUPTARGET_DIR/$MSG_FILE_NAME"
+			rm -f $MSG_FILE &>/dev/null
 			;;
 		*)
 			LOG_FILE="$LOG_OUTPUT"
@@ -2526,10 +2520,6 @@ function setupEnvironment() {
 		if [[ $LOG_OUTPUT != $LOG_OUTPUT_SYSLOG ]]; then	# keep syslog :-)
 			(( ! $FAKE )) && rm $PREVIOUS_LOG_FILE &>> "$LOG_FILE"
 		fi
-	fi
-	if [[ $PREVIOUS_MSG_FILE != $MSG_FILE || (( $FAKE )) ]]; then
-		cp $PREVIOUS_MSG_FILE $MSG_FILE &>/dev/null
-		(( ! $FAKE )) && rm $PREVIOUS_MSG_FILE &>> "$LOG_FILE"
 	fi
 
 	logItem "LOG_OUTPUT: $LOG_OUTPUT"
@@ -2751,7 +2741,7 @@ function sendTelegramm() { # subject
 
 	logEntry "$1"
 
-	if ! hash jq 2>/dev/null; then # suppress error message when jq is not installed
+	if ! which jq &>/dev/null; then # suppress error message when jq is not installed
 		writeToConsole $MSG_LEVEL_MINIMAL $MSG_MISSING_INSTALLED_FILE "jq" "jq"
 
 	elif [[ -n "$TELEGRAM_TOKEN" && rc != $RC_CTRLC ]] ; then
@@ -3022,7 +3012,7 @@ function masqueradeSensitiveInfoInLog() {
 
 function masqueradeNonlocalIPs() { # file
 
-	if hash perl 2>/dev/null; then
+	if which perl &>/dev/null; then
 
 		perl -pi.bak -ne '
 			my $IP_ADDRESS = qr /(([\d]{1,3}\.){3}[\d]{1,3})/;
@@ -3212,8 +3202,8 @@ EOF
 	logExit
 }
 
-function extractVersionFromFile() { # fileName
-	echo $(grep "^VERSION.*=" "$1" | cut -f 2 -d = | sed  -e "s/\"//g" -e "s/#.*//")
+function extractVersionFromFile() { # fileName type (VERSION|VERSION_CONFIG)
+	echo $(grep "^$2=" "$1" | cut -f 2 -d = | sed  -e "s/\"//g" -e "s/#.*//")
 }
 
 function revertScriptVersion() {
@@ -3226,14 +3216,14 @@ function revertScriptVersion() {
 		assertionFailed $LINENO "$SCRIPT_DIR/$MYSELF not found"
 	fi
 
-	local currentVersion="$(extractVersionFromFile "$SCRIPT_DIR/$MYSELF")"
+	local currentVersion="$(extractVersionFromFile "$SCRIPT_DIR/$MYSELF" "$VERSION_VARNAME")"
 	writeToConsole $MSG_LEVEL_MINIMAL $MSG_CURRENT_SCRIPT_VERSION "$currentVersion"
 
 	declare -A versionsOfFiles
 
 	local version
 	for versionFile in "${existingVersionFiles[@]}"; do
-		version="$(extractVersionFromFile "$versionFile")"
+		version="$(extractVersionFromFile "$versionFile" "$VERSION_VARNAME" )"
 		if [[ $version != $currentVersion ]]; then
 			versionsOfFiles+=([$version]=$versionFile)
 		fi
@@ -4819,12 +4809,12 @@ function commonChecks() {
 			writeToConsole $MSG_LEVEL_MINIMAL $MSG_EMAIL_PROG_NOT_SUPPORTED "$EMAIL_PROGRAM" "$SUPPORTED_MAIL_PROGRAMS"
 			exitError $RC_EMAILPROG_ERROR
 		fi
-		if [[ ! $(hash $EMAIL_PROGRAM 2>/dev/null) && ( $EMAIL_PROGRAM != $EMAIL_EXTENSION_PROGRAM ) ]]; then
+		if [[ ! $(which $EMAIL_PROGRAM) && ( $EMAIL_PROGRAM != $EMAIL_EXTENSION_PROGRAM ) ]]; then
 			writeToConsole $MSG_LEVEL_MINIMAL $MSG_MAILPROGRAM_NOT_INSTALLED $EMAIL_PROGRAM
 			exitError $RC_EMAILPROG_ERROR
 		fi
-		if [[ (( "$MAIL_PROGRAM" == $EMAIL_SSMTP_PROGRAM || "$MAIL_PROGRAM" == $EMAIL_MSMTP_PROGRAM )) && (( $APPEND_LOG )) ]]; then
-			if ! hash mpack 2>/dev/null; then
+		if [[ (( "$EMAIL_PROGRAM" == $EMAIL_SSMTP_PROGRAM || "$EMAIL_PROGRAM" == $EMAIL_MSMTP_PROGRAM )) && (( $APPEND_LOG )) ]]; then
+			if ! which mpack &>/dev/null; then
 				writeToConsole $MSG_LEVEL_MINIMAL $MSG_MPACK_NOT_INSTALLED
 				APPEND_LOG=0
 			fi
@@ -5200,7 +5190,7 @@ function doitBackup() {
 	fi
 
 	if [[ -n "$TELEGRAM_CHATID" && -n "$TELEGRAM_TOKEN" ]]; then
-		if ! hash jq 2>/dev/null; then
+		if ! which jq &>/dev/null; then
 			writeToConsole $MSG_LEVEL_MINIMAL $MSG_MISSING_INSTALLED_FILE "jq" "jq"
 			exitError $RC_MISSING_COMMANDS
 		fi
@@ -5212,7 +5202,7 @@ function doitBackup() {
 	fi
 
 	if [[ "$BACKUPTYPE" == "$BACKUPTYPE_RSYNC" ]]; then
-		if ! hash rsync 2>/dev/null; then
+		if ! which rsync &>/dev/null; then
 			writeToConsole $MSG_LEVEL_MINIMAL $MSG_MISSING_INSTALLED_FILE "rsync" "rsync"
 			exitError $RC_MISSING_COMMANDS
 		fi
@@ -5257,7 +5247,7 @@ function doitBackup() {
 	fi
 
 	if (( $PROGRESS )) && [[ "$BACKUPTYPE" == "$BACKUPTYPE_DD" || "$BACKUPTYPE" == "$BACKUPTYPE_DDZ" ]]; then
-		if ! hash pv 2>/dev/null; then
+		if ! which pv &>/dev/null; then
 			writeToConsole $MSG_LEVEL_MINIMAL $MSG_MISSING_INSTALLED_FILE "pv" "pv"
 			exitError $RC_MISSING_COMMANDS
 		fi
@@ -5285,7 +5275,7 @@ function doitBackup() {
 		fi
 	fi
 
-	if (( $SYSTEMSTATUS )) && ! hash 2>/dev/null; then
+	if (( $SYSTEMSTATUS )) && ! which lsof &>/dev/null; then
 		 writeToConsole $MSG_LEVEL_MINIMAL $MSG_MISSING_INSTALLED_FILE "lsof" "lsof"
 		 exitError $RC_MISSING_COMMANDS
 	fi
@@ -6063,7 +6053,7 @@ function doitRestore() {
 		exitError $RC_PARAMETER_ERROR
 	fi
 
-	if (( $PROGRESS )) && [[ "$BACKUPTYPE" == "$BACKUPTYPE_DD" || "$BACKUPTYPE" == "$BACKUPTYPE_DDZ" ]] && [[ $(hash pv 2>/dev/null) ]]; then
+	if (( $PROGRESS )) && [[ "$BACKUPTYPE" == "$BACKUPTYPE_DD" || "$BACKUPTYPE" == "$BACKUPTYPE_DDZ" ]] && [[ $(which pv &>/dev/null) ]]; then
 		writeToConsole $MSG_LEVEL_MINIMAL $MSG_MISSING_INSTALLED_FILE "pv" "pv"
 		exitError $RC_PARAMETER_ERROR
 	fi
@@ -6092,7 +6082,7 @@ function doitRestore() {
 	logItem "Date: $DATE"
 
 	if [[ "$BACKUPTYPE" == "$BACKUPTYPE_RSYNC" ]]; then
-		if ! hash rsync 2>/dev/null; then
+		if ! which rsync &>/dev/null; then
 			writeToConsole $MSG_LEVEL_MINIMAL $MSG_MISSING_INSTALLED_FILE "rsync" "rsync"
 			exitError $RC_MISSING_COMMANDS
 		fi
@@ -6105,7 +6095,7 @@ function doitRestore() {
 	fi
 
 	if (( $PARTITIONBASED_BACKUP )); then
-		if ! hash dosfslabel 2>/dev/null; then
+		if ! which dosfslabel &>/dev/null; then
 			writeToConsole $MSG_LEVEL_MINIMAL $MSG_MISSING_INSTALLED_FILE "dosfslabel" "dosfstools"
 			exitError $RC_MISSING_COMMANDS
 		fi
@@ -7176,7 +7166,7 @@ if [[ -n "$CUSTOM_CONFIG_FILE" && -f "$CUSTOM_CONFIG_FILE" ]]; then
 	. "$CUSTOM_CONFIG_FILE"
 	set +e
 	CUSTOM_CONFIG_FILE_INCLUDED=1
-	CUSTOM_CONFIG_FILE_VERSION="$(extractVersionFromFile "$CUSTOM_CONFIG_FILE")"
+	CUSTOM_CONFIG_FILE_VERSION="$(extractVersionFromFile "$CUSTOM_CONFIG_FILE" "$VERSION_CONFIG_VARNAME" )"
 #	if [[ -n "$CUSTOM_CONFIG_FILE_VERSION" && "$CUSTOM_CONFIG_FILE_VERSION" != "$VERSION_CONFIG" ]]; then
 #		writeToConsole $MSG_LEVEL_MINIMAL $MSG_CONFIG_VERSION_DOES_NOT_MATCH "$CUSTOM_CONFIG_FILE_VERSION" "$CUSTOM_CONFIG_FILE" "$VERSION_CONFIG"
 #	fi
