@@ -33,6 +33,7 @@ EMAIL_NOTIFICATION=0
 ENVIRONMENTS_TO_TEST="sd usb"
 TYPES_TO_TEST="dd ddz tar tgz rsync"
 MODES_TO_TEST="n p"
+MODES_TO_TEST="n"
 BOOTMODE_TO_TEST="d t"
 
 if [[ "$1" == "-h" ]]; then

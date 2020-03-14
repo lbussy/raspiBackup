@@ -285,6 +285,8 @@ function checkV612RootBackups() { # type (dd, ddz, rsync, ...) count mode (N,P)
 
 	case $3 in
 		N)	buCnt=$(ls ${BACKUP_PATH}_$3/$HOSTNAME/*-$1-backup*/*.$extension 2>/dev/null | wc -l)
+			buCnt2=$(ls -d ${BACKUP_PATH}_$3/$HOSTNAME/*-$1-backup*/*sda* 2>/dev/null | wc -l)
+			(( buCnt+=buCnt2 ))
 			;;
 		P)	buCnt=$(ls -d ${BACKUP_PATH}_$3/$HOSTNAME/*-$1-backup*/*mmcblk* 2>/dev/null | wc -l)
 			(( buCntToCheck=buCntToCheck*$PARTITIONS_PER_BACKUP ))
