@@ -64,11 +64,11 @@ IS_HOTFIX=$((! $? ))
 MYSELF=${0##*/}
 MYNAME=${MYSELF%.*}
 
-GIT_DATE="$Date: 2020-03-09 16:36:45 +0100$"
+GIT_DATE="$Date: 2020-03-14 12:38:17 +0100$"
 GIT_DATE_ONLY=${GIT_DATE/: /}
 GIT_DATE_ONLY=$(cut -f 2 -d ' ' <<< $GIT_DATE)
 GIT_TIME_ONLY=$(cut -f 3 -d ' ' <<< $GIT_DATE)
-GIT_COMMIT="$Sha1: 528cf66$"
+GIT_COMMIT="$Sha1: 2ee324d$"
 GIT_COMMIT_ONLY=$(cut -f 2 -d ' ' <<< $GIT_COMMIT | sed 's/\$//')
 
 GIT_CODEVERSION="$MYSELF $VERSION, $GIT_DATE_ONLY/$GIT_TIME_ONLY - $GIT_COMMIT_ONLY"
@@ -3924,21 +3924,19 @@ function areDevicesUnique() {
 	local line
 	local unique=0
 
+	local uuid uuidsub partuuid
+
 	while read line; do
+	
 		if grep -q ID_FS_UUID= <<< "$line"; then
-			local uuid="$(cut -f2 -d= <<< "$line")"
-			if grep -q ID_FS_UUID_SUB= <<< "$line"; then
-				local uuidsub="$(cut -f2 -d= <<< "$line")"
-				uuid="${uuid}_${uuidsub}"
-			fi
-			if [[ ${UUID[$uuid]}+abc != "+abc" ]]; then
-				logItem "UUID $uuid is not unique"
-				unique=1
-			else
-				UUID[$uuid]=1
-			fi
-		elif grep -q ID_FS_PARTUUID= <<< "$line"; then
-			local partuuid="$(cut -f2 -d= <<< "$line")"
+			uuid="$(cut -f2 -d= <<< "$line")"
+		fi
+		if grep -q ID_FS_UUID_SUB= <<< "$line"; then
+			uuidsub="$(cut -f2 -d= <<< "$line")"
+			uuid="${uuid}_${uuidsub}"
+		fi
+		if grep -q ID_FS_PARTUUID= <<< "$line"; then
+			partuuid="$(cut -f2 -d= <<< "$line")"
 			if [[ ${PARTUUID[$partuuid]}+abc != "+abc" ]]; then
 				logItem "PARTUUID $partuuid is not unique"
 				unique=1
@@ -3947,13 +3945,28 @@ function areDevicesUnique() {
 			fi
 		fi
 
+		if [[ -z "$line" ]]; then								# groups are separated by empty lines thus one group parsed now
+			if [[ ${UUID[$uuid]}+abc != "+abc" ]]; then 
+				logItem "UUID $uuid is not unique"
+				unique=1
+			else
+				UUID[$uuid]=1
+			fi
+		fi
+		
 	done < <(blkid -o udev)
+
+	if [[ ${UUID[$uuid]}+abc != "+abc" ]]; then # check last group in output with no trailing empty line
+		logItem "UUID $uuid is not unique"
+		unique=1
+	else
+		UUID[$uuid]=1
+	fi
 
 	logExit $unique
 	return $unique
 
 }
-
 
 function logSystemDiskState() {
 	logEntry
