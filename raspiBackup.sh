@@ -64,11 +64,11 @@ IS_HOTFIX=$((! $? ))
 MYSELF=${0##*/}
 MYNAME=${MYSELF%.*}
 
-GIT_DATE="$Date: 2020-03-14 12:38:17 +0100$"
+GIT_DATE="$Date: 2020-03-21 13:45:49 +0100$"
 GIT_DATE_ONLY=${GIT_DATE/: /}
 GIT_DATE_ONLY=$(cut -f 2 -d ' ' <<< $GIT_DATE)
 GIT_TIME_ONLY=$(cut -f 3 -d ' ' <<< $GIT_DATE)
-GIT_COMMIT="$Sha1: 2ee324d$"
+GIT_COMMIT="$Sha1: 1a9ecfa$"
 GIT_COMMIT_ONLY=$(cut -f 2 -d ' ' <<< $GIT_COMMIT | sed 's/\$//')
 
 GIT_CODEVERSION="$MYSELF $VERSION, $GIT_DATE_ONLY/$GIT_TIME_ONLY - $GIT_COMMIT_ONLY"
@@ -649,8 +649,8 @@ MSG_VISIT_VERSION_HISTORY_PAGE=114
 MSG_EN[$MSG_VISIT_VERSION_HISTORY_PAGE]="RBK0114I: Visit %s to read about the changes in the new version."
 MSG_DE[$MSG_VISIT_VERSION_HISTORY_PAGE]="RBK0114I: Besuche %s um die Änderungen in der neuen Version kennenzulernen."
 MSG_DEPLOYED_HOST=115
-MSG_EN[$MSG_DEPLOYED_HOST]="RBK0115I: $MYNAME $VERSION installed on host %s for user %s."
-MSG_DE[$MSG_DEPLOYED_HOST]="RBK0115I: $MYNAME $VERSION wurde auf Server %s für Benutzer %s installiert."
+MSG_EN[$MSG_DEPLOYED_HOST]="RBK0115I: $MYNAME $VERSION ($GIT_COMMIT_ONLY) installed on host %s for user %s."
+MSG_DE[$MSG_DEPLOYED_HOST]="RBK0115I: $MYNAME $VERSION ($GIT_COMMIT_ONLY) wurde auf Server %s für Benutzer %s installiert."
 MSG_INCLUDED_CONFIG=116
 MSG_EN[$MSG_INCLUDED_CONFIG]="RBK0116I: Using config file %s."
 MSG_DE[$MSG_INCLUDED_CONFIG]="RBK0116I: Konfigurationsdatei %s wird benutzt."
@@ -901,8 +901,8 @@ MSG_MISSING_PACKAGES=194
 MSG_EN[$MSG_MISSING_PACKAGES]="RBK0194E: Missing required packages. Install them with 'sudo apt-get install %s'."
 MSG_DE[$MSG_MISSING_PACKAGES]="RBK0194E: Erforderliche Pakete nicht installiert. Installiere sie mit 'sudo apt-get install %s'"
 MSG_FORCE_UPDATE=195
-MSG_EN[$MSG_FORCE_UPDATE]="RBK0192I: Update $MYSELF %s."
-MSG_DE[$MSG_FORCE_UPDATE]="RBK0192I: $MYSELF %s aktualisieren."
+MSG_EN[$MSG_FORCE_UPDATE]="RBK0192I: Update $MYSELF to latest version %s."
+MSG_DE[$MSG_FORCE_UPDATE]="RBK0192I: $MYSELF auf aktuellsten Stand von %s aktualisieren."
 MSG_NO_HARDLINKS_USED=196
 MSG_EN[$MSG_NO_HARDLINKS_USED]="RBK0196W: No hardlinks supported on %s."
 MSG_DE[$MSG_NO_HARDLINKS_USED]="RBK0196W: %s unterstützt keine Hardlinks."
@@ -1026,6 +1026,9 @@ MSG_DE[$MSG_INVALID_TRUE_FALSE_OPTION]="RBK0235E: Ungültige an/aus Option %s f�
 MSG_PARTITION_MODE_NO_LONGER_SUPPORTED=236
 MSG_EN[$MSG_PARTITION_MODE_NO_LONGER_SUPPORTED]="RBK0236W: Partition oriented backup will not be maintained any more and disable somewhere in the future."
 MSG_DE[$MSG_PARTITION_MODE_NO_LONGER_SUPPORTED]="RBK0236W: Partitionsorientierter Modus wird nicht mehr weiter gewartet und irgendwann in Zukunft nicht mehr verfügbar sein."
+MSG_UPDATE_TO_LATEST_BETA=237
+MSG_EN[$MSG_UPDATE_TO_LATEST_BETA]="RBK0237I: Upgrading current version %s to latest version."
+MSG_DE[$MSG_UPDATE_TO_LATEST_BETA]="RBK0237I: Die momentane Version %s auf die aktuellste Version upgraden."
 
 declare -A MSG_HEADER=( ['I']="---" ['W']="!!!" ['E']="???" )
 
@@ -1731,14 +1734,8 @@ function initializeConfig() {
 
 # nice function to get user who invoked this script via sudo
 # Borrowed from http://stackoverflow.com/questions/4598001/how-do-you-find-the-original-user-through-multiple-sudo-and-su-commands
-# adapted to return current user if no sudoers is used
 
 function findUser() {
-
-	if [[ -z "$SUDO_USER" || "$SUDO_USER" == "root" ]]; then
-		echo $USER
-		return
-	fi
 
 	thisPID=$$
 	origUser=$(whoami)
@@ -1756,6 +1753,7 @@ function findUser() {
 	done
 
 	getent passwd "$thisUser" | cut -d: -f1
+	
 }
 
 function substituteNumberArguments() {
@@ -2207,25 +2205,32 @@ function updateScript() {
 
 		local betaVersion=$(isBetaAvailable)
 
-		if [[ -n $betaVersion && "${betaVersion}-beta" > $oldVersion ]]; then
-			writeToConsole $MSG_LEVEL_MINIMAL $MSG_UPDATE_TO_BETA "$oldVersion" "${betaVersion}-beta"
-			if askYesNo; then
-				DOWNLOAD_URL="$BETA_DOWNLOAD_URL"
-				newVersion="${betaVersion}-beta"
-				updateNow=1
+		if [[ -n $betaVersion ]]; then
+			if [[ "${betaVersion}-beta" > $oldVersion ]]; then 			# beta version available
+				writeToConsole $MSG_LEVEL_MINIMAL $MSG_UPDATE_TO_BETA "$oldVersion" "${betaVersion}-beta"
+				if askYesNo; then
+					DOWNLOAD_URL="$BETA_DOWNLOAD_URL"
+					newVersion="${betaVersion}-beta"
+					updateNow=1
+				fi
+			elif (( $FORCE_UPDATE )); then									# refresh beta with latest version
+				writeToConsole $MSG_LEVEL_MINIMAL $MSG_UPDATE_TO_LATEST_BETA "${betaVersion}-beta"
+				if askYesNo; then
+					DOWNLOAD_URL="$BETA_DOWNLOAD_URL"
+					newVersion="${betaVersion}-beta"
+					updateNow=1
+				fi
 			fi
 		fi
-
-		if [[ $rc == 0 ]] && (( ! $updateNow )); then
+		
+		if [[ $rc == 0 && (( ! $updateNow )) ]]; then							# new version available
 			writeToConsole $MSG_LEVEL_MINIMAL $MSG_UPDATE_TO_VERSION "$oldVersion" "$newVersion"
 			if ! askYesNo; then
 				writeToConsole $MSG_LEVEL_MINIMAL $MSG_UPDATE_ABORTED
 				exitNormal
 			fi
 			updateNow=1
-		fi
-
-		if [[ $rc == 0 ]] && (( !$updateNow )); then
+		elif [[ $rc == 1 || $rc == 2 ]] && [[ -z "$betaVersion" ]] && (( ! $updateNow && $FORCE_UPDATE )); then		# no beta version, same version (maybe development version) but force update
 			writeToConsole $MSG_LEVEL_MINIMAL $MSG_FORCE_UPDATE "$oldVersion"
 			if askYesNo; then
 				updateNow=1
@@ -2484,7 +2489,7 @@ function setupEnvironment() {
 			LOG_FILE="$LOG_BASE/$HOSTNAME.log"
 			MSG_FILE="$LOG_BASE/$HOSTNAME.msg"
 			echo "--- $(date)" >> $LOG_FILE # separate new log from previous logs
-			rm -f $MSG_FILE &>/dev/null 
+			rm -f $MSG_FILE &>/dev/null
 			;;
 		$LOG_OUTPUT_HOME)
 			LOG_FILE="$CURRENT_DIR/$LOG_FILE_NAME"
@@ -2885,6 +2890,7 @@ function cleanupBackupDirectory() {
 			# save log in current directory because backup directory will be deleted
 			if [[ -f $LOG_FILE ]]; then
 				local user=$(findUser)
+				logItem "Current user: $user"
 				[[ $user == "root" ]] && TARGET_LOG_FILE="/root/$LOG_FILE_NAME" || TARGET_LOG_FILE="/home/$user/$LOG_FILE_NAME"
 				cp "$LOG_FILE" "$TARGET_LOG_FILE" &>/dev/null
 				LOG_FILE="$TARGET_LOG_FILE"
@@ -2894,6 +2900,7 @@ function cleanupBackupDirectory() {
 			fi
 			if [[ -f $MSG_FILE ]]; then
 				local user=$(findUser)
+				logItem "Current user: $user"
 				[[ $user == "root" ]] && TARGET_MSG_FILE="/root/$MSG_FILE_NAME" || TARGET_MSG_FILE="/home/$user/$MSG_FILE_NAME"
 				cp "$MSG_FILE" "$TARGET_MSG_FILE" &>/dev/null
 				MSG_FILE="$TARGET_MSG_FILE"
@@ -3927,7 +3934,7 @@ function areDevicesUnique() {
 	local uuid uuidsub partuuid
 
 	while read line; do
-	
+
 		if grep -q ID_FS_UUID= <<< "$line"; then
 			uuid="$(cut -f2 -d= <<< "$line")"
 		fi
@@ -3946,21 +3953,21 @@ function areDevicesUnique() {
 		fi
 
 		if [[ -z "$line" ]]; then								# groups are separated by empty lines thus one group parsed now
-			if [[ ${UUID[$uuid]}+abc != "+abc" ]]; then 
+			if [[ ${UUID[$uuid]}+abc != "+abc" ]]; then
 				logItem "UUID $uuid is not unique"
 				unique=1
 			else
 				UUID[$uuid]=1
 			fi
+			uuid=""
+			uuidsub=""
 		fi
-		
+
 	done < <(blkid -o udev)
 
-	if [[ ${UUID[$uuid]}+abc != "+abc" ]]; then # check last group in output with no trailing empty line
+	if [[ -n $uuid && ${UUID[$uuid]}+abc != "+abc" ]]; then # check last group in output with no trailing empty line
 		logItem "UUID $uuid is not unique"
 		unique=1
-	else
-		UUID[$uuid]=1
 	fi
 
 	logExit $unique
