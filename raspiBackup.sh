@@ -61,19 +61,11 @@ IS_HOTFIX=$(( ! $(grep -iq hotfix <<< "$VERSION"; echo $?) ))
 MYSELF=${0##*/}
 MYNAME=${MYSELF%.*}
 
-<<<<<<< HEAD
 GIT_DATE="$Date: 2020-03-23 17:57:18 +0100$"
 GIT_DATE_ONLY=${GIT_DATE/: /}
 GIT_DATE_ONLY=$(cut -f 2 -d ' ' <<< $GIT_DATE)
 GIT_TIME_ONLY=$(cut -f 3 -d ' ' <<< $GIT_DATE)
 GIT_COMMIT="$Sha1: 925b708$"
-=======
-GIT_DATE="$Date: 2020-03-21 13:45:49 +0100$"
-GIT_DATE_ONLY=${GIT_DATE/: /}
-GIT_DATE_ONLY=$(cut -f 2 -d ' ' <<< $GIT_DATE)
-GIT_TIME_ONLY=$(cut -f 3 -d ' ' <<< $GIT_DATE)
-GIT_COMMIT="$Sha1: 1a9ecfa$"
->>>>>>> d353c503ec86bcce3e88d633de4326f7997a7dfd
 GIT_COMMIT_ONLY=$(cut -f 2 -d ' ' <<< $GIT_COMMIT | sed 's/\$//')
 
 GIT_CODEVERSION="$MYSELF $VERSION, $GIT_DATE_ONLY/$GIT_TIME_ONLY - $GIT_COMMIT_ONLY"
@@ -1764,7 +1756,7 @@ function findUser() {
 	done
 
 	getent passwd "$thisUser" | cut -d: -f1
-	
+
 }
 
 function substituteNumberArguments() {
@@ -1879,7 +1871,7 @@ function isUpdatePossible() {
 		writeToConsole $MSG_LEVEL_MINIMAL $MSG_VISIT_VERSION_HISTORY_PAGE "$(getLocalizedMessage $MSG_VERSION_HISTORY_PAGE)"
 	fi
 
-	logExit 
+	logExit
 
 }
 
@@ -2233,7 +2225,7 @@ function updateScript() {
 				fi
 			fi
 		fi
-		
+
 		if [[ $rc == 0 && (( ! $updateNow )) ]]; then							# new version available
 			writeToConsole $MSG_LEVEL_MINIMAL $MSG_UPDATE_TO_VERSION "$oldVersion" "$newVersion"
 			if ! askYesNo; then
@@ -3043,12 +3035,12 @@ function masqueradeSensitiveInfoInLog() {
 	sed -i -E "s/$HOSTNAME/@HOSTNAME@/g" $LOG_FILE
 
 	# any non local IPs used somewhere (mounts et al)
-	
+
 	logItem "Masquerading non local IPs"
 	masqueradeNonlocalIPs $LOG_FILE
 
 	# now delete console color annotation ESC sequences
-	
+
 	sed -i 's/\x1b\[1;33m//g' $LOG_FILE
 	sed -i 's/\x1b\[1;31m//g' $LOG_FILE
 	sed -i 's/\x1b\[0m//g' $LOG_FILE
