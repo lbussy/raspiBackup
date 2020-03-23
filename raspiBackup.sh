@@ -37,6 +37,9 @@ fi
 VERSION="0.6.5-beta"	# -beta, -hotfix or -dev suffixes possible
 VERSION_CONFIG="0.1.3"	# required config version
 
+VERSION_VARNAME="VERSION"				# has to match above var names
+VERSION_CONFIG_VARNAME="VERSION_CONFIG"	# same here
+
 # add pathes if not already set (usually not set in crontab)
 
 DEFAULT_PATHES="/usr/local/sbin /usr/local/bin /usr/sbin /usr/bin /sbin /bin"
@@ -51,21 +54,18 @@ if [[ -e /bin/grep ]]; then
 	export PATH="$PATH"
 fi
 
-grep -iq beta <<< "$VERSION"
-IS_BETA=$((! $? ))
-grep -iq dev <<< "$VERSION"
-IS_DEV=$((! $? ))
-grep -iq hotfix <<< "$VERSION"
-IS_HOTFIX=$((! $? ))
+IS_BETA=$(( ! $(grep -iq beta <<< "$VERSION"; echo $?) ))
+IS_DEV=$(( ! $(grep -iq dev <<< "$VERSION"; echo $?) ))
+IS_HOTFIX=$(( ! $(grep -iq hotfix <<< "$VERSION"; echo $?) ))
 
 MYSELF=${0##*/}
 MYNAME=${MYSELF%.*}
 
-GIT_DATE="$Date: 2020-03-04 23:54:34 +0100$"
+GIT_DATE="$Date: 2020-03-23 17:57:18 +0100$"
 GIT_DATE_ONLY=${GIT_DATE/: /}
 GIT_DATE_ONLY=$(cut -f 2 -d ' ' <<< $GIT_DATE)
 GIT_TIME_ONLY=$(cut -f 3 -d ' ' <<< $GIT_DATE)
-GIT_COMMIT="$Sha1: 1170419$"
+GIT_COMMIT="$Sha1: 925b708$"
 GIT_COMMIT_ONLY=$(cut -f 2 -d ' ' <<< $GIT_COMMIT | sed 's/\$//')
 
 GIT_CODEVERSION="$MYSELF $VERSION, $GIT_DATE_ONLY/$GIT_TIME_ONLY - $GIT_COMMIT_ONLY"
@@ -79,7 +79,8 @@ NL=$'\n'
 CURRENT_DIR=$(pwd)
 SCRIPT_DIR=$( cd $( dirname ${BASH_SOURCE[0]}); pwd | xargs readlink -f)
 
-# Smiley used in eMail subject to notify about news/events
+# Smileys used in eMail subject to notify about news/events
+
 SMILEY_WARNING="O.o"
 SMILEY_UPDATE_POSSIBLE=";-)"
 SMILEY_BETA_AVAILABLE=":-D"
@@ -96,6 +97,9 @@ VAR_LIB_DIRECTORY="/var/lib/$MYNAME"
 RESTORE_REMINDER_FILE="restore.reminder"
 VARS_FILE="/tmp/$MYNAME.vars"
 TEMPORARY_MOUNTPOINT_ROOT="/tmp"
+
+# timeouts
+
 DOWNLOAD_TIMEOUT=60 # seconds
 DOWNLOAD_RETRIES=3
 
@@ -646,8 +650,8 @@ MSG_VISIT_VERSION_HISTORY_PAGE=114
 MSG_EN[$MSG_VISIT_VERSION_HISTORY_PAGE]="RBK0114I: Visit %s to read about the changes in the new version."
 MSG_DE[$MSG_VISIT_VERSION_HISTORY_PAGE]="RBK0114I: Besuche %s um die Änderungen in der neuen Version kennenzulernen."
 MSG_DEPLOYED_HOST=115
-MSG_EN[$MSG_DEPLOYED_HOST]="RBK0115I: $MYNAME $VERSION installed on host %s for user %s."
-MSG_DE[$MSG_DEPLOYED_HOST]="RBK0115I: $MYNAME $VERSION wurde auf Server %s für Benutzer %s installiert."
+MSG_EN[$MSG_DEPLOYED_HOST]="RBK0115I: $MYNAME $VERSION ($GIT_COMMIT_ONLY) installed on host %s for user %s."
+MSG_DE[$MSG_DEPLOYED_HOST]="RBK0115I: $MYNAME $VERSION ($GIT_COMMIT_ONLY) wurde auf Server %s für Benutzer %s installiert."
 MSG_INCLUDED_CONFIG=116
 MSG_EN[$MSG_INCLUDED_CONFIG]="RBK0116I: Using config file %s."
 MSG_DE[$MSG_INCLUDED_CONFIG]="RBK0116I: Konfigurationsdatei %s wird benutzt."
@@ -898,8 +902,8 @@ MSG_MISSING_PACKAGES=194
 MSG_EN[$MSG_MISSING_PACKAGES]="RBK0194E: Missing required packages. Install them with 'sudo apt-get install %s'."
 MSG_DE[$MSG_MISSING_PACKAGES]="RBK0194E: Erforderliche Pakete nicht installiert. Installiere sie mit 'sudo apt-get install %s'"
 MSG_FORCE_UPDATE=195
-MSG_EN[$MSG_FORCE_UPDATE]="RBK0192I: Update $MYSELF %s."
-MSG_DE[$MSG_FORCE_UPDATE]="RBK0192I: $MYSELF %s aktualisieren."
+MSG_EN[$MSG_FORCE_UPDATE]="RBK0192I: Update $MYSELF to latest version %s."
+MSG_DE[$MSG_FORCE_UPDATE]="RBK0192I: $MYSELF auf aktuellsten Stand von %s aktualisieren."
 MSG_NO_HARDLINKS_USED=196
 MSG_EN[$MSG_NO_HARDLINKS_USED]="RBK0196W: No hardlinks supported on %s."
 MSG_DE[$MSG_NO_HARDLINKS_USED]="RBK0196W: %s unterstützt keine Hardlinks."
@@ -1023,6 +1027,9 @@ MSG_DE[$MSG_INVALID_TRUE_FALSE_OPTION]="RBK0235E: Ungültige an/aus Option %s f�
 MSG_PARTITION_MODE_NO_LONGER_SUPPORTED=236
 MSG_EN[$MSG_PARTITION_MODE_NO_LONGER_SUPPORTED]="RBK0236W: Partition oriented backup will not be maintained any more and disable somewhere in the future."
 MSG_DE[$MSG_PARTITION_MODE_NO_LONGER_SUPPORTED]="RBK0236W: Partitionsorientierter Modus wird nicht mehr weiter gewartet und irgendwann in Zukunft nicht mehr verfügbar sein."
+MSG_UPDATE_TO_LATEST_BETA=237
+MSG_EN[$MSG_UPDATE_TO_LATEST_BETA]="RBK0237I: Upgrading current version %s to latest version."
+MSG_DE[$MSG_UPDATE_TO_LATEST_BETA]="RBK0237I: Die momentane Version %s auf die aktuellste Version upgraden."
 
 declare -A MSG_HEADER=( ['I']="---" ['W']="!!!" ['E']="???" )
 
@@ -1110,7 +1117,7 @@ function callExtensions() { # extensionplugpoint rc
 		shift 1
 		local args=( "$@" )
 
-		if hash $extensionFileName 2>/dev/null; then
+		if which $extensionFileName &>/dev/null; then
 			logItem "Calling $extensionFileName"
 			$extensionFileName "${args[@]}"
 			local rc=$?
@@ -1129,7 +1136,7 @@ function callExtensions() { # extensionplugpoint rc
 
 			local extensionFileName="${MYNAME}_${extension}_$1.sh"
 
-			if hash $extensionFileName 2>/dev/null; then
+			if which $extensionFileName &>/dev/null; then
 				logItem "Calling $extensionFileName $2"
 				executeShellCommand ". $extensionFileName $2"
 				local rc=$?
@@ -1221,10 +1228,12 @@ function writeToConsole() {  # msglevel messagenumber message
 		echo $noNL -e "$timestamp$msg" >> "$MSG_FILE"
 	fi
 
-	local line
-	while IFS= read -r line; do
-		logIntoOutput $LOG_TYPE_MSG "$line"
-	done <<< "$msg"
+	if (( ! $INTERACTIVE )); then # don't write message twice into log
+		local line
+		while IFS= read -r line; do
+			logIntoOutput $LOG_TYPE_MSG "$line"
+		done <<< "$msg"
+	fi
 
 	unset noNL
 }
@@ -1421,7 +1430,7 @@ function logCommand() { # command
 function logSystemServices() {
 	logEntry
 	if (( $SYSTEMSTATUS )); then
-		if ! hash lsof 2>/dev/null; then
+		if ! which lsof &>/dev/null; then
 				writeToConsole $MSG_LEVEL_MINIMAL $MSG_MISSING_INSTALLED_FILE "lsof" "lsof"
 			else
 				logCommand "service --status-all 2>&1"
@@ -1728,14 +1737,8 @@ function initializeConfig() {
 
 # nice function to get user who invoked this script via sudo
 # Borrowed from http://stackoverflow.com/questions/4598001/how-do-you-find-the-original-user-through-multiple-sudo-and-su-commands
-# adapted to return current user if no sudoers is used
 
 function findUser() {
-
-	if [[ -z "$SUDO_USER" || "$SUDO_USER" == "root" ]]; then
-		echo $USER
-		return
-	fi
 
 	thisPID=$$
 	origUser=$(whoami)
@@ -1753,6 +1756,7 @@ function findUser() {
 	done
 
 	getent passwd "$thisUser" | cut -d: -f1
+	
 }
 
 function substituteNumberArguments() {
@@ -1852,7 +1856,7 @@ function hasSpaces() { # file- or directory name
 
 function isUpdatePossible() {
 
-	logEntry ""
+	logEntry
 
 	versions=( $(isNewVersionAvailable) )
 	version_rc=$?
@@ -1867,7 +1871,7 @@ function isUpdatePossible() {
 		writeToConsole $MSG_LEVEL_MINIMAL $MSG_VISIT_VERSION_HISTORY_PAGE "$(getLocalizedMessage $MSG_VERSION_HISTORY_PAGE)"
 	fi
 
-	logExit ""
+	logExit 
 
 }
 
@@ -2204,25 +2208,32 @@ function updateScript() {
 
 		local betaVersion=$(isBetaAvailable)
 
-		if [[ -n $betaVersion && "${betaVersion}-beta" > $oldVersion ]]; then
-			writeToConsole $MSG_LEVEL_MINIMAL $MSG_UPDATE_TO_BETA "$oldVersion" "${betaVersion}-beta"
-			if askYesNo; then
-				DOWNLOAD_URL="$BETA_DOWNLOAD_URL"
-				newVersion="${betaVersion}-beta"
-				updateNow=1
+		if [[ -n $betaVersion ]]; then
+			if [[ "${betaVersion}-beta" > $oldVersion ]]; then 			# beta version available
+				writeToConsole $MSG_LEVEL_MINIMAL $MSG_UPDATE_TO_BETA "$oldVersion" "${betaVersion}-beta"
+				if askYesNo; then
+					DOWNLOAD_URL="$BETA_DOWNLOAD_URL"
+					newVersion="${betaVersion}-beta"
+					updateNow=1
+				fi
+			elif (( $FORCE_UPDATE )); then									# refresh beta with latest version
+				writeToConsole $MSG_LEVEL_MINIMAL $MSG_UPDATE_TO_LATEST_BETA "${betaVersion}-beta"
+				if askYesNo; then
+					DOWNLOAD_URL="$BETA_DOWNLOAD_URL"
+					newVersion="${betaVersion}-beta"
+					updateNow=1
+				fi
 			fi
 		fi
-
-		if [[ $rc == 0 ]] && (( ! $updateNow )); then
+		
+		if [[ $rc == 0 && (( ! $updateNow )) ]]; then							# new version available
 			writeToConsole $MSG_LEVEL_MINIMAL $MSG_UPDATE_TO_VERSION "$oldVersion" "$newVersion"
 			if ! askYesNo; then
 				writeToConsole $MSG_LEVEL_MINIMAL $MSG_UPDATE_ABORTED
 				exitNormal
 			fi
 			updateNow=1
-		fi
-
-		if [[ $rc == 0 ]] && (( !$updateNow )); then
+		elif [[ $rc == 1 || $rc == 2 ]] && [[ -z "$betaVersion" ]] && (( ! $updateNow && $FORCE_UPDATE )); then		# no beta version, same version (maybe development version) but force update
 			writeToConsole $MSG_LEVEL_MINIMAL $MSG_FORCE_UPDATE "$oldVersion"
 			if askYesNo; then
 				updateNow=1
@@ -2323,15 +2334,6 @@ function getFsType() { # file or path
 
 }
 
-function assertCommandAvailable() { # command package
-
-	if ! hash $1 2>/dev/null; then
-		writeToConsole $MSG_LEVEL_MINIMAL $MSG_MISSING_INSTALLED_FILE "$1" "$2"
-		exitError $RC_MISSING_COMMANDS
-	fi
-
-}
-
 # check if directory is located on a mounted device
 
 function isPathMounted() {
@@ -2374,7 +2376,7 @@ function readConfigParameters() {
 		. "$ETC_CONFIG_FILE"
 		set +e
 		ETC_CONFIG_FILE_INCLUDED=1
-		ETC_CONFIG_FILE_VERSION="$(extractVersionFromFile "$ETC_CONFIG_FILE")"
+		ETC_CONFIG_FILE_VERSION="$(extractVersionFromFile "$ETC_CONFIG_FILE" "$VERSION_CONFIG_VARNAME" )"
 #		if [[ "$ETC_CONFIG_FILE_VERSION" != "$VERSION_CONFIG" ]]; then
 #			writeToConsole $MSG_LEVEL_MINIMAL $MSG_CONFIG_VERSION_DOES_NOT_MATCH "$ETC_CONFIG_FILE_VERSION" "$ETC_CONFIG_FILE" "$VERSION_CONFIG"
 #		fi
@@ -2394,7 +2396,7 @@ function readConfigParameters() {
 		. "$HOME_CONFIG_FILE"
 		set +e
 		HOME_CONFIG_FILE_INCLUDED=1
-		HOME_CONFIG_FILE_VERSION="$(extractVersionFromFile "$HOME_CONFIG_FILE")"
+		HOME_CONFIG_FILE_VERSION="$(extractVersionFromFile "$HOME_CONFIG_FILE" "$VERSION_CONFIG_VARNAME" )"
 #		if [[ -n "$HOME_CONFIG_FILE_VERSION" && "$HOME_CONFIG_FILE_VERSION" != "$VERSION_CONFIG" ]]; then
 #			writeToConsole $MSG_LEVEL_MINIMAL $MSG_CONFIG_VERSION_DOES_NOT_MATCH "$HOME_CONFIG_FILE_VERSION" "$HOME_CONFIG_FILE" "$VERSION_CONFIG"
 #		fi
@@ -2409,7 +2411,7 @@ function readConfigParameters() {
 			. "$CURRENTDIR_CONFIG_FILE"
 			set +e
 			CURRENTDIR_CONFIG_FILE_INCLUDED=1
-			CURRENTDIR_CONFIG_FILE_VERSION="$(extractVersionFromFile "$CURRENTDIR_CONFIG_FILE")"
+			CURRENTDIR_CONFIG_FILE_VERSION="$(extractVersionFromFile "$CURRENTDIR_CONFIG_FILE" "$VERSION_CONFIG_VARNAME" )"
 #			if [[ -n "$CURRENTDIR_CONFIG_FILE_VERSION" && "$CURRENTDIR_CONFIG_FILE_VERSION" != "$VERSION_CONFIG" ]]; then
 #				writeToConsole $MSG_LEVEL_MINIMAL $MSG_CONFIG_VERSION_DOES_NOT_MATCH "$CURRENTDIR_CONFIG_FILE_VERSION" "$CURRENTDIR_CONFIG_FILE" "$VERSION_CONFIG"
 #			fi
@@ -2424,7 +2426,8 @@ function setupEnvironment() {
 	logEntry
 
 	local PREVIOUS_LOG_FILE="$LOG_FILE"
-	local PREVIOUS_MSG_FILE="$MSG_FILE"
+
+	logItem "Previous logfile: $LOG_FILE"
 
 	if (( ! $RESTORE )); then
 		ZIP_BACKUP_TYPE_INVALID=0		# logging not enabled right now, invalid backuptype will be handled later
@@ -2469,8 +2472,6 @@ function setupEnvironment() {
 			rm -f "$BACKUPPATH/$MYNAME.tmp" &>/dev/null
 		fi
 
-		logItem "Current logfiles: L: $LOG_FILE M: $MSG_FILE"
-
 		if (( $FAKE )) && [[ "$LOG_OUTPUT" =~ $LOG_OUTPUT_IS_NO_USERDEFINEDFILE_REGEX ]]; then
 			LOG_OUTPUT=$LOG_OUTPUT_HOME
 		fi
@@ -2491,7 +2492,7 @@ function setupEnvironment() {
 			LOG_FILE="$LOG_BASE/$HOSTNAME.log"
 			MSG_FILE="$LOG_BASE/$HOSTNAME.msg"
 			echo "--- $(date)" >> $LOG_FILE # separate new log from previous logs
-			echo "--- $(date)" >> $MSG_FILE
+			rm -f $MSG_FILE &>/dev/null
 			;;
 		$LOG_OUTPUT_HOME)
 			LOG_FILE="$CURRENT_DIR/$LOG_FILE_NAME"
@@ -2506,6 +2507,7 @@ function setupEnvironment() {
 		$LOG_OUTPUT_BACKUPLOC)
 			LOG_FILE="$BACKUPTARGET_DIR/$LOG_FILE_NAME"
 			MSG_FILE="$BACKUPTARGET_DIR/$MSG_FILE_NAME"
+			rm -f $MSG_FILE &>/dev/null
 			;;
 		*)
 			LOG_FILE="$LOG_OUTPUT"
@@ -2527,10 +2529,12 @@ function setupEnvironment() {
 			(( ! $FAKE )) && rm $PREVIOUS_LOG_FILE &>> "$LOG_FILE"
 		fi
 	fi
-	if [[ $PREVIOUS_MSG_FILE != $MSG_FILE || (( $FAKE )) ]]; then
-		cp $PREVIOUS_MSG_FILE $MSG_FILE &>/dev/null
-		(( ! $FAKE )) && rm $PREVIOUS_MSG_FILE &>> "$LOG_FILE"
-	fi
+
+	logItem "+================================================================================================================================================+"
+	logItem "| ===> A lot of sensitive information is masqueraded in this log file. Nevertheless please check the log carefully before you distribute it <=== |"
+	logItem "+================================================================================================================================================+"
+	logItem "| ===>  Viele sensitive Informationen werden in dieser Logdatei maskiert. Vor dem Verteilen des Logs sollte es trotzdem ueberprueft werden  <=== |"
+	logItem "+================================================================================================================================================+"
 
 	logItem "LOG_OUTPUT: $LOG_OUTPUT"
 	logItem "Using logfile $LOG_FILE"
@@ -2751,7 +2755,7 @@ function sendTelegramm() { # subject
 
 	logEntry "$1"
 
-	if ! hash jq 2>/dev/null; then # suppress error message when jq is not installed
+	if ! which jq &>/dev/null; then # suppress error message when jq is not installed
 		writeToConsole $MSG_LEVEL_MINIMAL $MSG_MISSING_INSTALLED_FILE "jq" "jq"
 
 	elif [[ -n "$TELEGRAM_TOKEN" && rc != $RC_CTRLC ]] ; then
@@ -2895,6 +2899,7 @@ function cleanupBackupDirectory() {
 			# save log in current directory because backup directory will be deleted
 			if [[ -f $LOG_FILE ]]; then
 				local user=$(findUser)
+				logItem "Current user: $user"
 				[[ $user == "root" ]] && TARGET_LOG_FILE="/root/$LOG_FILE_NAME" || TARGET_LOG_FILE="/home/$user/$LOG_FILE_NAME"
 				cp "$LOG_FILE" "$TARGET_LOG_FILE" &>/dev/null
 				LOG_FILE="$TARGET_LOG_FILE"
@@ -2904,6 +2909,7 @@ function cleanupBackupDirectory() {
 			fi
 			if [[ -f $MSG_FILE ]]; then
 				local user=$(findUser)
+				logItem "Current user: $user"
 				[[ $user == "root" ]] && TARGET_MSG_FILE="/root/$MSG_FILE_NAME" || TARGET_MSG_FILE="/home/$user/$MSG_FILE_NAME"
 				cp "$MSG_FILE" "$TARGET_MSG_FILE" &>/dev/null
 				MSG_FILE="$TARGET_MSG_FILE"
@@ -2984,6 +2990,7 @@ function masqueradeSensitiveInfoInLog() {
 	# receiver email
 
 	if [[ -n "$EMAIL" ]]; then
+		logItem "Masquerading eMail"
 		m="$(masquerade "$EMAIL")"
 		sed -i -E "s/$EMAIL/${m}/g" $LOG_FILE
 	fi
@@ -2991,40 +2998,57 @@ function masqueradeSensitiveInfoInLog() {
 	# email parms usually also contain eMails
 
 	if [[ -n "$EMAIL_PARMS" ]]; then
+		logItem "Masquerading eMail parameters"
 		m="$(masquerade "$EMAIL_PARMS")"
 		sed -i -E "s/$EMAIL_PARMS/${m}/" $LOG_FILE # may contain passwords
 	fi
 
 	# some mount options
 
+	logItem "Masquerading some mount options"
 	sed -i -E "s/username=[^,]+\,/username=${MASQUERADE_STRING},/" $LOG_FILE # used in cifs mount options
 	sed -i -E "s/domain=[^,]+\,/domain=${MASQUERADE_STRING},/" $LOG_FILE
 
 	# telegram token and chatid
 
 	if	m="$(masquerade $TELEGRAM_TOKEN)"; then
+		logItem "Masquerading telegram token"
 		sed -i -E "s/${TELEGRAM_TOKEN}/${m}/g" $LOG_FILE
 	fi
 
 	if m="$(masquerade $TELEGRAM_CHATID)"; then
+		logItem "Masquerading telegram chatid"
 		sed -i -E "s/${TELEGRAM_CHATID}/${m}/g" $LOG_FILE
 	fi
 
 	# In home directories usually first names are used
 
-	sed -i -E "s/\/home\/([^\\])+\/(.)/\/home\/${MASQUERADE_STRING}\/\2/g" $LOG_FILE
+	logItem "Masquerading home directory name"
+	sed -i -E "s/\/home\/([^\\])+\/(.)/\/home\/@USER@\/\2/g" $LOG_FILE
+
+	# hostname may expose domain names
+
+	logItem "Masquerading hostname"
+	sed -i -E "s/$HOSTNAME/@HOSTNAME@/g" $LOG_FILE
 
 	# any non local IPs used somewhere (mounts et al)
-
+	
+	logItem "Masquerading non local IPs"
 	masqueradeNonlocalIPs $LOG_FILE
+
+	# now delete console color annotation ESC sequences
+	
+	sed -i 's/\x1b\[1;33m//g' $LOG_FILE
+	sed -i 's/\x1b\[1;31m//g' $LOG_FILE
+	sed -i 's/\x1b\[0m//g' $LOG_FILE
 
 }
 
 function masqueradeNonlocalIPs() { # file
 
-	if hash perl 2>/dev/null; then
+	if which perl &>/dev/null; then
 
-		perl -pi.bak -ne '
+		perl -pi -ne '
 			my $IP_ADDRESS = qr /(([\d]{1,3}\.){3}[\d]{1,3})/;
 			my $line;
 
@@ -3121,13 +3145,6 @@ function cleanup() { # trap
 		sendEMail "" "$msg"
 	fi
 
-	logItem "================================================================================================================================================================================="
-	logItem "================================================================================================================================================================================="
-	logItem "================================================================================================================================================================================="
-	logItem "===> Masquerading some sensitive information in the log file but there may be still some sensitive details not masqueraded. Please check carefully before publishing the log <==="
-	logItem "================================================================================================================================================================================="
-	logItem "================================================================================================================================================================================="
-	logItem "================================================================================================================================================================================="
 	exec >&3 2>&4 # free logfile
 	masqueradeSensitiveInfoInLog # and now masquerade sensitive details in log file
 
@@ -3212,8 +3229,8 @@ EOF
 	logExit
 }
 
-function extractVersionFromFile() { # fileName
-	echo $(grep "^VERSION.*=" "$1" | cut -f 2 -d = | sed  -e "s/\"//g" -e "s/#.*//")
+function extractVersionFromFile() { # fileName type (VERSION|VERSION_CONFIG)
+	echo $(grep "^$2=" "$1" | cut -f 2 -d = | sed  -e "s/\"//g" -e "s/#.*//")
 }
 
 function revertScriptVersion() {
@@ -3226,14 +3243,14 @@ function revertScriptVersion() {
 		assertionFailed $LINENO "$SCRIPT_DIR/$MYSELF not found"
 	fi
 
-	local currentVersion="$(extractVersionFromFile "$SCRIPT_DIR/$MYSELF")"
+	local currentVersion="$(extractVersionFromFile "$SCRIPT_DIR/$MYSELF" "$VERSION_VARNAME")"
 	writeToConsole $MSG_LEVEL_MINIMAL $MSG_CURRENT_SCRIPT_VERSION "$currentVersion"
 
 	declare -A versionsOfFiles
 
 	local version
 	for versionFile in "${existingVersionFiles[@]}"; do
-		version="$(extractVersionFromFile "$versionFile")"
+		version="$(extractVersionFromFile "$versionFile" "$VERSION_VARNAME" )"
 		if [[ $version != $currentVersion ]]; then
 			versionsOfFiles+=([$version]=$versionFile)
 		fi
@@ -3934,21 +3951,19 @@ function areDevicesUnique() {
 	local line
 	local unique=0
 
+	local uuid uuidsub partuuid
+
 	while read line; do
+
 		if grep -q ID_FS_UUID= <<< "$line"; then
-			local uuid="$(cut -f2 -d= <<< "$line")"
-			if grep -q ID_FS_UUID_SUB= <<< "$line"; then
-				local uuidsub="$(cut -f2 -d= <<< "$line")"
-				uuid="${uuid}_${uuidsub}"
-			fi
-			if [[ ${UUID[$uuid]}+abc != "+abc" ]]; then
-				logItem "UUID $uuid is not unique"
-				unique=1
-			else
-				UUID[$uuid]=1
-			fi
-		elif grep -q ID_FS_PARTUUID= <<< "$line"; then
-			local partuuid="$(cut -f2 -d= <<< "$line")"
+			uuid="$(cut -f2 -d= <<< "$line")"
+		fi
+		if grep -q ID_FS_UUID_SUB= <<< "$line"; then
+			uuidsub="$(cut -f2 -d= <<< "$line")"
+			uuid="${uuid}_${uuidsub}"
+		fi
+		if grep -q ID_FS_PARTUUID= <<< "$line"; then
+			partuuid="$(cut -f2 -d= <<< "$line")"
 			if [[ ${PARTUUID[$partuuid]}+abc != "+abc" ]]; then
 				logItem "PARTUUID $partuuid is not unique"
 				unique=1
@@ -3957,13 +3972,28 @@ function areDevicesUnique() {
 			fi
 		fi
 
+		if [[ -z "$line" ]]; then								# groups are separated by empty lines thus one group parsed now
+			if [[ ${UUID[$uuid]}+abc != "+abc" ]]; then
+				logItem "UUID $uuid is not unique"
+				unique=1
+			else
+				UUID[$uuid]=1
+			fi
+			uuid=""
+			uuidsub=""
+		fi
+
 	done < <(blkid -o udev)
+
+	if [[ -n $uuid && ${UUID[$uuid]}+abc != "+abc" ]]; then # check last group in output with no trailing empty line
+		logItem "UUID $uuid is not unique"
+		unique=1
+	fi
 
 	logExit $unique
 	return $unique
 
 }
-
 
 function logSystemDiskState() {
 	logEntry
@@ -4272,7 +4302,7 @@ function restore() {
 
 function applyBackupStrategy() {
 
-	logEntry $BACKUP_TARGETDIR
+	logEntry "$BACKUP_TARGETDIR"
 
 	if (( $SMART_RECYCLE )); then
 
@@ -4819,12 +4849,12 @@ function commonChecks() {
 			writeToConsole $MSG_LEVEL_MINIMAL $MSG_EMAIL_PROG_NOT_SUPPORTED "$EMAIL_PROGRAM" "$SUPPORTED_MAIL_PROGRAMS"
 			exitError $RC_EMAILPROG_ERROR
 		fi
-		if [[ ! $(hash $EMAIL_PROGRAM 2>/dev/null) && ( $EMAIL_PROGRAM != $EMAIL_EXTENSION_PROGRAM ) ]]; then
+		if [[ ! $(which $EMAIL_PROGRAM) && ( $EMAIL_PROGRAM != $EMAIL_EXTENSION_PROGRAM ) ]]; then
 			writeToConsole $MSG_LEVEL_MINIMAL $MSG_MAILPROGRAM_NOT_INSTALLED $EMAIL_PROGRAM
 			exitError $RC_EMAILPROG_ERROR
 		fi
-		if [[ (( "$MAIL_PROGRAM" == $EMAIL_SSMTP_PROGRAM || "$MAIL_PROGRAM" == $EMAIL_MSMTP_PROGRAM )) && (( $APPEND_LOG )) ]]; then
-			if ! hash mpack 2>/dev/null; then
+		if [[ (( "$EMAIL_PROGRAM" == $EMAIL_SSMTP_PROGRAM || "$EMAIL_PROGRAM" == $EMAIL_MSMTP_PROGRAM )) && (( $APPEND_LOG )) ]]; then
+			if ! which mpack &>/dev/null; then
 				writeToConsole $MSG_LEVEL_MINIMAL $MSG_MPACK_NOT_INSTALLED
 				APPEND_LOG=0
 			fi
@@ -5200,7 +5230,7 @@ function doitBackup() {
 	fi
 
 	if [[ -n "$TELEGRAM_CHATID" && -n "$TELEGRAM_TOKEN" ]]; then
-		if ! hash jq 2>/dev/null; then
+		if ! which jq &>/dev/null; then
 			writeToConsole $MSG_LEVEL_MINIMAL $MSG_MISSING_INSTALLED_FILE "jq" "jq"
 			exitError $RC_MISSING_COMMANDS
 		fi
@@ -5212,7 +5242,7 @@ function doitBackup() {
 	fi
 
 	if [[ "$BACKUPTYPE" == "$BACKUPTYPE_RSYNC" ]]; then
-		if ! hash rsync 2>/dev/null; then
+		if ! which rsync &>/dev/null; then
 			writeToConsole $MSG_LEVEL_MINIMAL $MSG_MISSING_INSTALLED_FILE "rsync" "rsync"
 			exitError $RC_MISSING_COMMANDS
 		fi
@@ -5257,7 +5287,7 @@ function doitBackup() {
 	fi
 
 	if (( $PROGRESS )) && [[ "$BACKUPTYPE" == "$BACKUPTYPE_DD" || "$BACKUPTYPE" == "$BACKUPTYPE_DDZ" ]]; then
-		if ! hash pv 2>/dev/null; then
+		if ! which pv &>/dev/null; then
 			writeToConsole $MSG_LEVEL_MINIMAL $MSG_MISSING_INSTALLED_FILE "pv" "pv"
 			exitError $RC_MISSING_COMMANDS
 		fi
@@ -5285,7 +5315,7 @@ function doitBackup() {
 		fi
 	fi
 
-	if (( $SYSTEMSTATUS )) && ! hash 2>/dev/null; then
+	if (( $SYSTEMSTATUS )) && ! which lsof &>/dev/null; then
 		 writeToConsole $MSG_LEVEL_MINIMAL $MSG_MISSING_INSTALLED_FILE "lsof" "lsof"
 		 exitError $RC_MISSING_COMMANDS
 	fi
@@ -6063,7 +6093,7 @@ function doitRestore() {
 		exitError $RC_PARAMETER_ERROR
 	fi
 
-	if (( $PROGRESS )) && [[ "$BACKUPTYPE" == "$BACKUPTYPE_DD" || "$BACKUPTYPE" == "$BACKUPTYPE_DDZ" ]] && [[ $(hash pv 2>/dev/null) ]]; then
+	if (( $PROGRESS )) && [[ "$BACKUPTYPE" == "$BACKUPTYPE_DD" || "$BACKUPTYPE" == "$BACKUPTYPE_DDZ" ]] && [[ $(which pv &>/dev/null) ]]; then
 		writeToConsole $MSG_LEVEL_MINIMAL $MSG_MISSING_INSTALLED_FILE "pv" "pv"
 		exitError $RC_PARAMETER_ERROR
 	fi
@@ -6092,7 +6122,7 @@ function doitRestore() {
 	logItem "Date: $DATE"
 
 	if [[ "$BACKUPTYPE" == "$BACKUPTYPE_RSYNC" ]]; then
-		if ! hash rsync 2>/dev/null; then
+		if ! which rsync &>/dev/null; then
 			writeToConsole $MSG_LEVEL_MINIMAL $MSG_MISSING_INSTALLED_FILE "rsync" "rsync"
 			exitError $RC_MISSING_COMMANDS
 		fi
@@ -6105,7 +6135,7 @@ function doitRestore() {
 	fi
 
 	if (( $PARTITIONBASED_BACKUP )); then
-		if ! hash dosfslabel 2>/dev/null; then
+		if ! which dosfslabel &>/dev/null; then
 			writeToConsole $MSG_LEVEL_MINIMAL $MSG_MISSING_INSTALLED_FILE "dosfslabel" "dosfstools"
 			exitError $RC_MISSING_COMMANDS
 		fi
@@ -7176,7 +7206,7 @@ if [[ -n "$CUSTOM_CONFIG_FILE" && -f "$CUSTOM_CONFIG_FILE" ]]; then
 	. "$CUSTOM_CONFIG_FILE"
 	set +e
 	CUSTOM_CONFIG_FILE_INCLUDED=1
-	CUSTOM_CONFIG_FILE_VERSION="$(extractVersionFromFile "$CUSTOM_CONFIG_FILE")"
+	CUSTOM_CONFIG_FILE_VERSION="$(extractVersionFromFile "$CUSTOM_CONFIG_FILE" "$VERSION_CONFIG_VARNAME" )"
 #	if [[ -n "$CUSTOM_CONFIG_FILE_VERSION" && "$CUSTOM_CONFIG_FILE_VERSION" != "$VERSION_CONFIG" ]]; then
 #		writeToConsole $MSG_LEVEL_MINIMAL $MSG_CONFIG_VERSION_DOES_NOT_MATCH "$CUSTOM_CONFIG_FILE_VERSION" "$CUSTOM_CONFIG_FILE" "$VERSION_CONFIG"
 #	fi
