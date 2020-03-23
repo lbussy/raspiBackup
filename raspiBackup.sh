@@ -61,11 +61,19 @@ IS_HOTFIX=$(( ! $(grep -iq hotfix <<< "$VERSION"; echo $?) ))
 MYSELF=${0##*/}
 MYNAME=${MYSELF%.*}
 
+<<<<<<< HEAD
 GIT_DATE="$Date: 2020-03-23 17:57:18 +0100$"
 GIT_DATE_ONLY=${GIT_DATE/: /}
 GIT_DATE_ONLY=$(cut -f 2 -d ' ' <<< $GIT_DATE)
 GIT_TIME_ONLY=$(cut -f 3 -d ' ' <<< $GIT_DATE)
 GIT_COMMIT="$Sha1: 925b708$"
+=======
+GIT_DATE="$Date: 2020-03-21 13:45:49 +0100$"
+GIT_DATE_ONLY=${GIT_DATE/: /}
+GIT_DATE_ONLY=$(cut -f 2 -d ' ' <<< $GIT_DATE)
+GIT_TIME_ONLY=$(cut -f 3 -d ' ' <<< $GIT_DATE)
+GIT_COMMIT="$Sha1: 1a9ecfa$"
+>>>>>>> d353c503ec86bcce3e88d633de4326f7997a7dfd
 GIT_COMMIT_ONLY=$(cut -f 2 -d ' ' <<< $GIT_COMMIT | sed 's/\$//')
 
 GIT_CODEVERSION="$MYSELF $VERSION, $GIT_DATE_ONLY/$GIT_TIME_ONLY - $GIT_COMMIT_ONLY"
@@ -2529,12 +2537,15 @@ function setupEnvironment() {
 			(( ! $FAKE )) && rm $PREVIOUS_LOG_FILE &>> "$LOG_FILE"
 		fi
 	fi
+<<<<<<< HEAD
 
 	logItem "+================================================================================================================================================+"
 	logItem "| ===> A lot of sensitive information is masqueraded in this log file. Nevertheless please check the log carefully before you distribute it <=== |"
 	logItem "+================================================================================================================================================+"
 	logItem "| ===>  Viele sensitive Informationen werden in dieser Logdatei maskiert. Vor dem Verteilen des Logs sollte es trotzdem ueberprueft werden  <=== |"
 	logItem "+================================================================================================================================================+"
+=======
+>>>>>>> d353c503ec86bcce3e88d633de4326f7997a7dfd
 
 	logItem "LOG_OUTPUT: $LOG_OUTPUT"
 	logItem "Using logfile $LOG_FILE"
