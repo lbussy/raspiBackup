@@ -61,11 +61,11 @@ IS_HOTFIX=$(( ! $(grep -iq hotfix <<< "$VERSION"; echo $?) ))
 MYSELF=${0##*/}
 MYNAME=${MYSELF%.*}
 
-GIT_DATE="$Date: 2020-03-23 17:57:18 +0100$"
+GIT_DATE="$Date: 2020-03-27 20:34:33 +0100$"
 GIT_DATE_ONLY=${GIT_DATE/: /}
 GIT_DATE_ONLY=$(cut -f 2 -d ' ' <<< $GIT_DATE)
 GIT_TIME_ONLY=$(cut -f 3 -d ' ' <<< $GIT_DATE)
-GIT_COMMIT="$Sha1: 925b708$"
+GIT_COMMIT="$Sha1: 62ed5bd$"
 GIT_COMMIT_ONLY=$(cut -f 2 -d ' ' <<< $GIT_COMMIT | sed 's/\$//')
 
 GIT_CODEVERSION="$MYSELF $VERSION, $GIT_DATE_ONLY/$GIT_TIME_ONLY - $GIT_COMMIT_ONLY"
@@ -317,8 +317,8 @@ MSG_TRUNCATING_TO_USED_PARTITIONS_ONLY=3
 MSG_EN[$MSG_TRUNCATING_TO_USED_PARTITIONS_ONLY]="RBK0003I: Backup size will be truncated from %s to %s."
 MSG_DE[$MSG_TRUNCATING_TO_USED_PARTITIONS_ONLY]="RBK0003I: Backupgröße wird von %s auf %s reduziert."
 MSG_ADJUSTING_SECOND=4
-MSG_EN[$MSG_ADJUSTING_SECOND]="RBK0004W: Adjusting second partition from %s to %s."
-MSG_DE[$MSG_ADJUSTING_SECOND]="RBK0004W: Zweite Partition wird von %s auf %s angepasst."
+MSG_EN[$MSG_ADJUSTING_SECOND]="RBK0004I: Adjusting second partition from %s to %s."
+MSG_DE[$MSG_ADJUSTING_SECOND]="RBK0004I: Zweite Partition wird von %s auf %s angepasst."
 MSG_BACKUP_FAILED=5
 MSG_EN[$MSG_BACKUP_FAILED]="RBK0005E: Backup failed. Check previous error messages for details."
 MSG_DE[$MSG_BACKUP_FAILED]="RBK0005E: Backup fehlerhaft beendet. Siehe vorhergehende Fehlermeldungen."
@@ -503,8 +503,8 @@ MSG_REPARTITION_WARNING=65
 MSG_EN[$MSG_REPARTITION_WARNING]="RBK0065W: Device %s will be repartitioned and all data will be lost."
 MSG_DE[$MSG_REPARTITION_WARNING]="RBK0065W: Gerät %s wird repartitioniert und die gesamten Daten werden gelöscht."
 MSG_WARN_RESTORE_DEVICE_OVERWRITTEN=66
-MSG_EN[$MSG_WARN_RESTORE_DEVICE_OVERWRITTEN]="RBK0066W: Device %s will be overwritten with the saved boot and root partition."
-MSG_DE[$MSG_WARN_RESTORE_DEVICE_OVERWRITTEN]="RBK0066W: Gerät %s wird überschrieben mit der gesicherten Boot- und Rootpartition."
+MSG_EN[$MSG_WARN_RESTORE_DEVICE_OVERWRITTEN]="RBK0066I: Device %s will be overwritten with the saved boot and root partition."
+MSG_DE[$MSG_WARN_RESTORE_DEVICE_OVERWRITTEN]="RBK0066I: Gerät %s wird überschrieben mit der gesicherten Boot- und Rootpartition."
 MSG_CURRENT_PARTITION_TABLE=67
 MSG_EN[$MSG_CURRENT_PARTITION_TABLE]="RBK0067I: Current partitions on %s:$NL%s"
 MSG_DE[$MSG_CURRENT_PARTITION_TABLE]="RBK0067I: Momentane Partitionen auf %s:$NL%s"
@@ -512,11 +512,11 @@ MSG_BOOTPATITIONFILES_FOUND=68
 MSG_EN[$MSG_BOOTPATITIONFILES_FOUND]="RBK0068I: Using bootpartition backup files starting with %s from directory %s."
 MSG_DE[$MSG_BOOTPATITIONFILES_FOUND]="RBK0068I: Bootpartitionsdateien des Backups aus dem Verzeichnis %s die mit %s beginnen werden benutzt."
 MSG_WARN_BOOT_PARTITION_OVERWRITTEN=69
-MSG_EN[$MSG_WARN_BOOT_PARTITION_OVERWRITTEN]="RBK0069W: Bootpartition %s will be formatted and will get the restored Boot partition."
-MSG_DE[$MSG_WARN_BOOT_PARTITION_OVERWRITTEN]="RBK0069W: Bootpartition %s wird formatiert und erhält die zurückgespielte Bootpartition."
+MSG_EN[$MSG_WARN_BOOT_PARTITION_OVERWRITTEN]="RBK0069I: Bootpartition %s will be formatted and will get the restored Boot partition."
+MSG_DE[$MSG_WARN_BOOT_PARTITION_OVERWRITTEN]="RBK0069I: Bootpartition %s wird formatiert und erhält die zurückgespielte Bootpartition."
 MSG_WARN_ROOT_PARTITION_OVERWRITTEN=70
-MSG_EN[$MSG_WARN_ROOT_PARTITION_OVERWRITTEN]="RBK0070W: Rootpartition %s will be formatted and will get the restored Root partition."
-MSG_DE[$MSG_WARN_ROOT_PARTITION_OVERWRITTEN]="RBK0070W: Rootpartition %s wird formatiert und erhält die zurückgespielte Rootpartition."
+MSG_EN[$MSG_WARN_ROOT_PARTITION_OVERWRITTEN]="RBK0070I: Rootpartition %s will be formatted and will get the restored Root partition."
+MSG_DE[$MSG_WARN_ROOT_PARTITION_OVERWRITTEN]="RBK0070I: Rootpartition %s wird formatiert und erhält die zurückgespielte Rootpartition."
 MSG_QUERY_CHARS_YES_NO=71
 MSG_EN[$MSG_QUERY_CHARS_YES_NO]="y/N"
 MSG_DE[$MSG_QUERY_CHARS_YES_NO]="j/N"
@@ -2529,15 +2529,12 @@ function setupEnvironment() {
 			(( ! $FAKE )) && rm $PREVIOUS_LOG_FILE &>> "$LOG_FILE"
 		fi
 	fi
-<<<<<<< HEAD
 
 	logItem "+================================================================================================================================================+"
 	logItem "| ===> A lot of sensitive information is masqueraded in this log file. Nevertheless please check the log carefully before you distribute it <=== |"
 	logItem "+================================================================================================================================================+"
 	logItem "| ===>  Viele sensitive Informationen werden in dieser Logdatei maskiert. Vor dem Verteilen des Logs sollte es trotzdem ueberprueft werden  <=== |"
 	logItem "+================================================================================================================================================+"
-=======
->>>>>>> d353c503ec86bcce3e88d633de4326f7997a7dfd
 
 	logItem "LOG_OUTPUT: $LOG_OUTPUT"
 	logItem "Using logfile $LOG_FILE"
@@ -4932,9 +4929,9 @@ function inspect4Backup() {
 		logItem "Force BOOT_DEVICE to $BOOT_DEVICE"
 	else
 
-		if ! areDevicesUnique; then
-			writeToConsole $MSG_LEVEL_MINIMAL $MSG_UUIDS_NOT_UNIQUE
-		fi
+		#if ! areDevicesUnique; then
+		#	writeToConsole $MSG_LEVEL_MINIMAL $MSG_UUIDS_NOT_UNIQUE
+		#fi
 
 		logItem "Legacy boot discovery"
 
