@@ -35,7 +35,7 @@ if [ ! -n "$BASH" ] ;then
 fi
 
 VERSION="0.6.5-beta"	# -beta, -hotfix or -dev suffixes possible
-VERSION_CONFIG="0.1.3"	# required config version
+VERSION_CONFIG="0.1.4"	# required config version
 
 VERSION_VARNAME="VERSION"				# has to match above var names
 VERSION_CONFIG_VARNAME="VERSION_CONFIG"	# same here
@@ -61,11 +61,11 @@ IS_HOTFIX=$(( ! $(grep -iq hotfix <<< "$VERSION"; echo $?) ))
 MYSELF=${0##*/}
 MYNAME=${MYSELF%.*}
 
-GIT_DATE="$Date: 2020-03-27 20:34:33 +0100$"
+GIT_DATE="$Date: 2020-04-01 21:06:32 +0200$"
 GIT_DATE_ONLY=${GIT_DATE/: /}
 GIT_DATE_ONLY=$(cut -f 2 -d ' ' <<< $GIT_DATE)
 GIT_TIME_ONLY=$(cut -f 3 -d ' ' <<< $GIT_DATE)
-GIT_COMMIT="$Sha1: 62ed5bd$"
+GIT_COMMIT="$Sha1: b1cd81a$"
 GIT_COMMIT_ONLY=$(cut -f 2 -d ' ' <<< $GIT_COMMIT | sed 's/\$//')
 
 GIT_CODEVERSION="$MYSELF $VERSION, $GIT_DATE_ONLY/$GIT_TIME_ONLY - $GIT_COMMIT_ONLY"

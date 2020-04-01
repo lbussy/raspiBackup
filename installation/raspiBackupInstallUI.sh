@@ -39,11 +39,11 @@ MYHOMEURL="https://$MYHOMEDOMAIN"
 
 MYDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-GIT_DATE="$Date: 2020-03-27 20:34:33 +0100$"
+GIT_DATE="$Date: 2020-04-01 21:06:32 +0200$"
 GIT_DATE_ONLY=${GIT_DATE/: /}
 GIT_DATE_ONLY=$(cut -f 2 -d ' ' <<<$GIT_DATE)
 GIT_TIME_ONLY=$(cut -f 3 -d ' ' <<<$GIT_DATE)
-GIT_COMMIT="$Sha1: 62ed5bd$"
+GIT_COMMIT="$Sha1: b1cd81a$"
 GIT_COMMIT_ONLY=$(cut -f 2 -d ' ' <<<$GIT_COMMIT | sed 's/\$//')
 
 GIT_CODEVERSION="$MYSELF $VERSION, $GIT_DATE_ONLY/$GIT_TIME_ONLY - $GIT_COMMIT_ONLY"
@@ -51,7 +51,7 @@ GIT_CODEVERSION="$MYSELF $VERSION, $GIT_DATE_ONLY/$GIT_TIME_ONLY - $GIT_COMMIT_O
 FILE_TO_INSTALL="raspiBackup.sh"
 
 RASPIBACKUP_NAME=${FILE_TO_INSTALL%.*}
-RASPIBACKUP_INSTALL_DEBUG=1 # just disable some code for debugging
+RASPIBACKUP_INSTALL_DEBUG=0 # just disable some code for debugging
 
 NL=$'\n'
 IGNORE_START_STOP_CHAR=":"
@@ -854,7 +854,7 @@ function code_download_execute() {
 	fi
 
 	if [[ "$MYDIR/$MYSELF" != "$FILE_TO_INSTALL_ABS_PATH/$MYSELF" ]]; then
-		if [[ -n $RASPIBACKUP_INSTALL_DEBUG ]]; then
+		if (( ! $RASPIBACKUP_INSTALL_DEBUG )); then
 			if ! mv -f "$MYDIR/$MYSELF" "$FILE_TO_INSTALL_ABS_PATH" &>>"$LOG_FILE"; then
 				unrecoverableError $MSG_MOVE_FAILED "$FILE_TO_INSTALL_ABS_PATH/$MYSELF"
 				return
