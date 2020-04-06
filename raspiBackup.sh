@@ -61,11 +61,11 @@ IS_HOTFIX=$(( ! $(grep -iq hotfix <<< "$VERSION"; echo $?) ))
 MYSELF=${0##*/}
 MYNAME=${MYSELF%.*}
 
-GIT_DATE="$Date: 2020-04-01 21:06:32 +0200$"
+GIT_DATE="$Date: 2020-04-06 16:39:58 +0200$"
 GIT_DATE_ONLY=${GIT_DATE/: /}
 GIT_DATE_ONLY=$(cut -f 2 -d ' ' <<< $GIT_DATE)
 GIT_TIME_ONLY=$(cut -f 3 -d ' ' <<< $GIT_DATE)
-GIT_COMMIT="$Sha1: b1cd81a$"
+GIT_COMMIT="$Sha1: ab03e5c$"
 GIT_COMMIT_ONLY=$(cut -f 2 -d ' ' <<< $GIT_COMMIT | sed 's/\$//')
 
 GIT_CODEVERSION="$MYSELF $VERSION, $GIT_DATE_ONLY/$GIT_TIME_ONLY - $GIT_COMMIT_ONLY"
@@ -7310,7 +7310,7 @@ setupEnvironment
 
 writeToConsole $MSG_LEVEL_MINIMAL $MSG_STARTED "$HOSTNAME" "$MYSELF" "$VERSION" "$GIT_COMMIT_ONLY" "$(date)"
 logger -t $MYSELF "Started $VERSION ($GIT_COMMIT_ONLY)"
-if (( "$NOTIFY_START" && ( ! $INTERACTIVE || $FAKE ) )) ; then
+if (( "$NOTIFY_START" )) ; then
 	msg="$(getLocalizedMessage $MSG_TITLE_STARTED "$HOSTNAME")"
 	if [[ -n "$EMAIL"  ]]; then
 		sendEMail "" "$msg"
