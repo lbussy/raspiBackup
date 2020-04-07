@@ -61,11 +61,11 @@ IS_HOTFIX=$(( ! $(grep -iq hotfix <<< "$VERSION"; echo $?) ))
 MYSELF=${0##*/}
 MYNAME=${MYSELF%.*}
 
-GIT_DATE="$Date: 2020-04-06 16:39:58 +0200$"
+GIT_DATE="$Date: 2020-04-07 20:48:34 +0200$"
 GIT_DATE_ONLY=${GIT_DATE/: /}
 GIT_DATE_ONLY=$(cut -f 2 -d ' ' <<< $GIT_DATE)
 GIT_TIME_ONLY=$(cut -f 3 -d ' ' <<< $GIT_DATE)
-GIT_COMMIT="$Sha1: ab03e5c$"
+GIT_COMMIT="$Sha1: 5a6e009$"
 GIT_COMMIT_ONLY=$(cut -f 2 -d ' ' <<< $GIT_COMMIT | sed 's/\$//')
 
 GIT_CODEVERSION="$MYSELF $VERSION, $GIT_DATE_ONLY/$GIT_TIME_ONLY - $GIT_COMMIT_ONLY"
@@ -1008,12 +1008,12 @@ MSG_EN[$MSG_TELEGRAM_SEND_OK]="RBK0229I: Telegram notified."
 MSG_DE[$MSG_TELEGRAM_SEND_OK]="RBK0229I: Telegram benachrichtigt."
 MSG_TELEGRAM_OPTIONS_INCOMPLETE=230
 MSG_EN[$MSG_TELEGRAM_OPTIONS_INCOMPLETE]="RBK0230E: Telegram options not complete."
-MSG_DE[$MSG_TELEGRAM_OPTIONS_INCOMPLETE]="RBK0230E: Telegrammoptionen nicht vollständig"
+MSG_DE[$MSG_TELEGRAM_OPTIONS_INCOMPLETE]="RBK0230E: Telegramoptionen nicht vollständig"
 MSG_TELEGRAM_SEND_LOG_FAILED=231
-MSG_EN[$MSG_TELEGRAM_SEND_LOG_FAILED]="RBK0231W: Send of messages to Telegram failed. curl RC: %s."
-MSG_DE[$MSG_TELEGRAM_SEND_LOG_FAILED]="RBK0231W: Senden von Meldungen an Telegram fehlerhaft. curl RC: %s."
+MSG_EN[$MSG_TELEGRAM_SEND_LOG_FAILED]="RBK0231W: Unable to send messages to Telegram. curl RC: %s."
+MSG_DE[$MSG_TELEGRAM_SEND_LOG_FAILED]="RBK0231W: Meldungen an Telegram konnten nicht gesendet werden. curl RC: %s."
 MSG_TELEGRAM_SEND_LOG_OK=232
-MSG_EN[$MSG_TELEGRAM_SEND_LOG_OK]="RBK0232I: Messages to Telegram sent."
+MSG_EN[$MSG_TELEGRAM_SEND_LOG_OK]="RBK0232I: Messages sent to Telegram."
 MSG_DE[$MSG_TELEGRAM_SEND_LOG_OK]="RBK0232I: Meldungen an Telegram gesendet."
 MSG_TELEGRAM_INVALID_NOTIFICATION=233
 MSG_EN[$MSG_TELEGRAM_INVALID_NOTIFICATION]="RBK0233E: Invalid Telegram notification %s detected. Valid notifications are %s."
@@ -2724,7 +2724,7 @@ function sendTelegramDocument() { # filename
 
 # Send message, exit
 
-function sendTelegramMessage() { # message html (yes/no)
+function sendTelegramMessage() { # message html(yes/no) 
 
 		logEntry "$1"
 
@@ -2737,10 +2737,12 @@ function sendTelegramMessage() { # message html (yes/no)
 		local curlRC=$?
 		logItem "Telegram response:${NL}${rsp}"
 
-		ok=$(jq .ok <<< "$rsp")
+		local ok=$(jq .ok <<< "$rsp")
 		if [[ $ok == "true" ]]; then
 			logItem "Message sent"
-			writeToConsole $MSG_LEVEL_MINIMAL $MSG_TELEGRAM_SEND_OK
+			if [[ -n $2 ]]; then	# write message only for html, not for messages
+				writeToConsole $MSG_LEVEL_MINIMAL $MSG_TELEGRAM_SEND_OK
+			fi
 		else
 			error_code="$(jq .error_code  <<< "$rsp")"
 			error_description="$(jq .description <<< "$rsp")"
@@ -2755,23 +2757,36 @@ function sendTelegramm() { # subject
 
 	logEntry "$1"
 
-	if ! which jq &>/dev/null; then # suppress error message when jq is not installed
-		writeToConsole $MSG_LEVEL_MINIMAL $MSG_MISSING_INSTALLED_FILE "jq" "jq"
-
-	elif [[ -n "$TELEGRAM_TOKEN" && rc != $RC_CTRLC ]] ; then
-
-		sendTelegramMessage "$1" 1 # html
-
-		if [[ "$TELEGRAM_NOTIFICATIONS" =~ $TELEGRAM_NOTIFY_MESSAGES2 ]]; then
-			sendTelegramMessage "$(<$MSG_FILE)" # no html
+	if [[ -n "$TELEGRAM_TOKEN" ]] ; then		
+		if ! which jq &>/dev/null; then # suppress error message when jq is not installed
+			writeToConsole $MSG_LEVEL_MINIMAL $MSG_MISSING_INSTALLED_FILE "jq" "jq"
+		else
+			sendTelegramMessage "$1" 1 # html
 		fi
-
-		if [[ "$TELEGRAM_NOTIFICATIONS" =~ $TELEGRAM_NOTIFY_MESSAGES ]]; then
-			sendTelegramDocument "$MSG_FILE"
-		fi
-		logExit "$ok"
-
 	fi
+	
+	logExit
+
+}
+
+# M -> add messages inline, m -> attach messages in a file
+function sendTelegrammLogMessages() { 
+
+	logEntry 
+
+	if [[ -n "$TELEGRAM_TOKEN" ]] ; then
+		if ! which jq &>/dev/null; then # suppress error message when jq is not installed
+			writeToConsole $MSG_LEVEL_MINIMAL $MSG_MISSING_INSTALLED_FILE "jq" "jq"
+		else
+			if [[ "$TELEGRAM_NOTIFICATIONS" =~ $TELEGRAM_NOTIFY_MESSAGES ]]; then
+				sendTelegramDocument "$MSG_FILE"
+			elif [[ "$TELEGRAM_NOTIFICATIONS" =~ $TELEGRAM_NOTIFY_MESSAGES2 ]]; then
+				sendTelegramMessage "$(<$MSG_FILE)" # no html
+			fi
+		fi
+	fi
+	
+	logExit 
 
 }
 
@@ -3127,6 +3142,7 @@ function cleanup() { # trap
 				msg=$(getLocalizedMessage $MSG_TITLE_ERROR $HOSTNAME)
 				if [[ "$TELEGRAM_NOTIFICATIONS" =~ $TELEGRAM_NOTIFY_FAILURE ]]; then
 					sendTelegramm "<b><u> $msg </u></b>"
+					sendTelegrammLogMessages
 				fi
 			fi
 		fi
@@ -3139,6 +3155,7 @@ function cleanup() { # trap
 			msg=$(getLocalizedMessage $MSG_TITLE_OK $HOSTNAME)
 			if [[ "$TELEGRAM_NOTIFICATIONS" =~ $TELEGRAM_NOTIFY_SUCCESS ]]; then
 				sendTelegramm "$msg"
+				sendTelegrammLogMessages
 			fi
 		fi
 		msg=$(getLocalizedMessage $MSG_TITLE_OK $HOSTNAME)
