@@ -61,11 +61,11 @@ IS_HOTFIX=$(( ! $(grep -iq hotfix <<< "$VERSION"; echo $?) ))
 MYSELF=${0##*/}
 MYNAME=${MYSELF%.*}
 
-GIT_DATE="$Date: 2020-04-08 21:23:22 +0200$"
+GIT_DATE="$Date: 2020-04-12 21:32:25 +0200$"
 GIT_DATE_ONLY=${GIT_DATE/: /}
 GIT_DATE_ONLY=$(cut -f 2 -d ' ' <<< $GIT_DATE)
 GIT_TIME_ONLY=$(cut -f 3 -d ' ' <<< $GIT_DATE)
-GIT_COMMIT="$Sha1: 37da3bf$"
+GIT_COMMIT="$Sha1: 2c256cd$"
 GIT_COMMIT_ONLY=$(cut -f 2 -d ' ' <<< $GIT_COMMIT | sed 's/\$//')
 
 GIT_CODEVERSION="$MYSELF $VERSION, $GIT_DATE_ONLY/$GIT_TIME_ONLY - $GIT_COMMIT_ONLY"
@@ -2226,7 +2226,7 @@ function updateScript() {
 			fi
 		fi
 
-		if [[ $rc == 0 && (( ! $updateNow )) ]]; then							# new version available
+		if [[ $rc == 0 ]] && (( ! $updateNow )); then							# new version available
 			writeToConsole $MSG_LEVEL_MINIMAL $MSG_UPDATE_TO_VERSION "$oldVersion" "$newVersion"
 			if ! askYesNo; then
 				writeToConsole $MSG_LEVEL_MINIMAL $MSG_UPDATE_ABORTED
@@ -2724,14 +2724,14 @@ function sendTelegramDocument() { # filename
 
 # Send message, exit
 
-function sendTelegramMessage() { # message html(yes/no) 
+function sendTelegramMessage() { # message html(yes/no)
 
 		logEntry "$1"
 
 		if [[ -z $2 ]]; then
-			local rsp="$(curl -s -X POST $TELEGRAM_URL$TELEGRAM_TOKEN/sendMessage -d chat_id=$TELEGRAM_CHATID -d text="$1")"
+			local rsp="$(curl -s -X POST $TELEGRAM_URL$TELEGRAM_TOKEN/sendMessage --data-urlencode "chat_id=$TELEGRAM_CHATID" --data-urlencode "text=$1")"
 		else
-			local rsp="$(curl -s -X POST $TELEGRAM_URL$TELEGRAM_TOKEN/sendMessage -d chat_id=$TELEGRAM_CHATID -d text="$1" -d parse_mode=html)"
+			local rsp="$(curl -s -X POST $TELEGRAM_URL$TELEGRAM_TOKEN/sendMessage --data-urlencode "chat_id=$TELEGRAM_CHATID" --data-urlencode "text=$1" -d parse_mode=html)"
 		fi
 
 		local curlRC=$?
@@ -2757,22 +2757,22 @@ function sendTelegramm() { # subject
 
 	logEntry "$1"
 
-	if [[ -n "$TELEGRAM_TOKEN" ]] ; then		
+	if [[ -n "$TELEGRAM_TOKEN" ]] ; then
 		if ! which jq &>/dev/null; then # suppress error message when jq is not installed
 			writeToConsole $MSG_LEVEL_MINIMAL $MSG_MISSING_INSTALLED_FILE "jq" "jq"
 		else
 			sendTelegramMessage "$1" 1 # html
 		fi
 	fi
-	
+
 	logExit
 
 }
 
 # M -> add messages inline, m -> attach messages in a file
-function sendTelegrammLogMessages() { 
+function sendTelegrammLogMessages() {
 
-	logEntry 
+	logEntry
 
 	if [[ -n "$TELEGRAM_TOKEN" ]] ; then
 		if ! which jq &>/dev/null; then # suppress error message when jq is not installed
@@ -2785,8 +2785,8 @@ function sendTelegrammLogMessages() {
 			fi
 		fi
 	fi
-	
-	logExit 
+
+	logExit
 
 }
 
